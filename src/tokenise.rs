@@ -1,6 +1,10 @@
-pub struct TokenIterator {
-    // Uses String because str is a pain with lifetimes
-    iter: Box<Iterator<Item = String>>,
+pub fn tokenise(source: &str) -> Vec<String> {
+    source
+        .trim()
+        .split_whitespace()
+        .flat_map(tokenise_brackets)
+        .map(String::from)
+        .collect()
 }
 
 fn tokenise_brackets(source: &str) -> Vec<String> {
@@ -26,32 +30,11 @@ fn tokenise_brackets(source: &str) -> Vec<String> {
     ret
 }
 
-impl TokenIterator {
-    pub fn new(source: &'static str) -> Self {
-        // trim excess whitespace
-        let trimmed: &str = source.trim();
-        // split tokens at whitespace
-        let split = trimmed.split_whitespace();
-
-        let map = split.flat_map(tokenise_brackets);
-        Self { iter: Box::new(map) }
-    }
-}
-
-impl Iterator for TokenIterator {
-    type Item = String;
-
-    fn next(&mut self) -> Option<String> {
-        self.iter.next()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::TokenIterator;
 
-    fn run_test(tv: &'static str, expected: &Vec<&str>) {
-        let res: Vec<String> = TokenIterator::new(tv).collect();
+    fn run_test(tv: &str, expected: &Vec<&str>) {
+        let res: Vec<String> = super::tokenise(tv);
         assert_eq!(res, *expected);
     }
 
