@@ -1,0 +1,6 @@
+[package]
+name = "rusty-scheme"
+version = "0.1.0"
+authors = ["Tom Eccles <t@freedommail.info>"]
+
+[dependencies]
