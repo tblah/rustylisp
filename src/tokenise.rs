@@ -12,7 +12,8 @@ pub fn tokenise(source: &mut String) -> IterableOfStrings {
     // copy back into the source buffer so that the lifetime of the iterable is sufficient
     trimmed.clone_into(source);
     source.split_whitespace() // interior of s-expressions are whitespace separated
-        .flat_map(tokenise_brackets) // split at ( ), producing the '(' and ')' tokens as well
+        // split at ( ), producing the '(' and ')' tokens as well
+        .flat_map(tokenise_special_characters)
 }
 
 /// remove line comments
@@ -26,11 +27,8 @@ fn trim_comments(source: &str) -> String {
                 // comments end at the end of the lines
                 in_comment = false;
             }
-            continue;
-        }
-
-        // if we are not in a comment
-        if c == ';' {
+        } else if c == ';' {
+            // if we are not in a comment
             in_comment = true;
         } else {
             ret.push(c); // only output non-comment characters
@@ -41,13 +39,14 @@ fn trim_comments(source: &str) -> String {
 }
 
 /// split things like "(cons" into ["(", "cons"]
-fn tokenise_brackets(source: &str) -> Vec<String> {
+fn tokenise_special_characters(source: &str) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
     let mut current = String::new();
+    let special = vec!['(', ')', '\'', '#'];
 
     for c in source.chars() {
         // if we need to split
-        if c == '(' || c == ')' {
+        if special.contains(&c) {
             // flush the previous token
             if !current.is_empty() {
                 ret.push(current.clone());
@@ -114,5 +113,15 @@ mod tests {
 ",
             &vec!["(", "one", "two", ")", "(", "five", ")"],
         )
+    }
+
+    #[test]
+    fn boolean() {
+        run_test("#t #f", &vec!["#", "t", "#", "f"])
+    }
+
+    #[test]
+    fn quoting() {
+        run_test("'(I am quoted)", &vec!["'", "(", "I", "am", "quoted", ")"])
     }
 }
