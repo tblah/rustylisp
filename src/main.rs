@@ -1,12 +1,11 @@
-#![feature(toowned_clone_into)]
 #[cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
 mod tokenise;
 
 fn main() {
-    let mut test_str = String::from("; Comment\n(+ 1 2 (plus 3 4))");
+    let test_str = String::from("; Comment\n(disp \"hello world\")");
     println!("{}", test_str);
 
-    let res: Vec<_> = tokenise::tokenise(&mut test_str).collect();
+    let res: Vec<_> = tokenise::tokenise(&test_str);
 
-    println!("{:?}", res);
+    println!("Tokenised: {:?}", res);
 }
