@@ -1,41 +1,24 @@
-/// Turn scheme source into an iterable of tokens (Strings)
-/// source is modified in place removing comments
+/// Turn scheme source into a vector of tokens (Strings)
 pub fn tokenise(source: &str) -> Vec<String> {
-    let trimmed = trim_comments(source);
-    split_tokens(&trimmed)
-}
-
-/// remove line comments
-fn trim_comments(source: &str) -> String {
-    let mut ret = String::new();
-    let mut in_comment = false;
-
-    for c in source.chars() {
-        if in_comment {
-            if c == '\n' {
-                // comments end at the end of the lines
-                in_comment = false;
-            }
-        } else if c == ';' {
-            // if we are not in a comment
-            in_comment = true;
-        } else {
-            ret.push(c); // only output non-comment characters
-        }
-    }
-
-    ret
-}
-
-/// split up tokens e.g. "(example)" -> ["(", "example", ")"]
-fn split_tokens(source: &str) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
     let mut current = String::new();
+
     let special = vec!['(', ')', '\'', '#'];
+
     let mut escaped = false; // '\\'
     let mut in_string = false; // '"'
+    let mut in_comment = false; // ';'
 
     for c in source.chars() {
+        // comments end at the end of lines
+        if in_comment {
+            if c == '\n' {
+                in_comment = false;
+            }
+
+            continue;
+        }
+
         // don't tokenise anything which is escaped
         if escaped {
             escaped = false;
@@ -75,6 +58,18 @@ fn split_tokens(source: &str) -> Vec<String> {
 
             // begin the new current token
             current.push(c);
+            continue;
+        }
+
+        // if we are starting a comment
+        if c == ';' {
+            in_comment = true;
+            // push old current token
+            if !current.is_empty() {
+                ret.push(current);
+                current = String::new();
+            }
+
             continue;
         }
 
@@ -176,6 +171,15 @@ mod tests {
         run_test(
             "\"I said \\\"Hello world\\\"\"",
             &vec!["\"I said \"Hello world\"\""],
+        )
+    }
+
+    #[test]
+    fn comment_in_string() {
+        run_test(
+            ";this is a comment
+            \"; this is not a comment\"",
+            &vec!["\"; this is not a comment\""],
         )
     }
 }

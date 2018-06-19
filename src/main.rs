@@ -2,7 +2,10 @@
 mod tokenise;
 
 fn main() {
-    let test_str = String::from("; Comment\n(disp \"hello world\")");
+    let test_str = String::from(
+        "; I am a comment
+(disp \"; I am not a comment\")",
+    );
     println!("{}", test_str);
 
     let res: Vec<_> = tokenise::tokenise(&test_str);
