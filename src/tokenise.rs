@@ -1,116 +1,159 @@
+use std::collections::VecDeque;
 use std::iter::Iterator;
 
-/// Turn scheme source into a vector of tokens (Strings)
-pub fn tokenise(source: &mut Iterator<Item=char>) -> Vec<String> {
-    let mut ret: Vec<String> = Vec::new();
-    let mut current = String::new();
+/// Iterator for tokens
+pub struct TokenInterator<'a> {
+    source: &'a mut Iterator<Item = char>,
+    pending: VecDeque<String>,
+}
 
-    let special = vec!['(', ')', '\'', '#'];
+impl<'a> TokenInterator<'a> {
+    /// Create a new instance of TokenIterator
+    pub fn new(source: &'a mut Iterator<Item = char>) -> Self {
+        Self {
+            source,
+            pending: VecDeque::with_capacity(2),
+        }
+    }
+}
 
-    let mut escaped = false; // '\\'
-    let mut in_string = false; // '"'
-    let mut in_comment = false; // ';'
+/// predicate used in next
+/// defines characters which we split tokens upon (other than whitespace)
+fn is_special(c: char) -> bool {
+    c == '(' || c == ')' || c == '\'' || c == '#'
+}
 
-    for c in source {
-        // comments end at the end of lines
-        if in_comment {
-            if c == '\n' {
-                in_comment = false;
+impl<'a> Iterator for TokenInterator<'a> {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // clear any pending items
+        let next = self.pending.pop_front();
+        if next.is_some() {
+            return next;
+        }
+
+        // else we have to do some work:
+
+        // this will be the item returned
+        let mut current = String::new();
+
+        // state of the tokeniser
+        let mut escaped = false; // '\\'
+        let mut in_comment = false; // ';'
+        let mut in_string = false; // '"'
+
+        // iterate through available characters in the source iterator
+        for c in &mut self.source {
+            // comments end at the end of lines
+            if in_comment {
+                if c == '\n' {
+                    in_comment = false;
+                }
+
+                // otherwise ignore comment characters
+                continue;
             }
 
-            continue;
-        }
+            // don't do anything with characters which are escaped
+            if escaped {
+                escaped = false;
+                current.push(c);
+                continue;
+            }
 
-        // don't tokenise anything which is escaped
-        if escaped {
-            escaped = false;
-            current.push(c);
-            continue;
-        }
+            // begin escaping
+            if c == '\\' {
+                escaped = true;
+                continue;
+            }
 
-        // begin escaping
-        if c == '\\' {
-            escaped = true;
-            continue;
-        }
+            // don't split tokens within strings
+            if in_string {
+                // add the character to the current token
+                current.push(c);
 
-        // don't split tokenise within strings
-        if in_string {
-            // add the character to the current token
-            current.push(c);
+                if c == '"' {
+                    // end of a string
+                    self.pending.push_back(current);
+                    return self.pending.pop_front();
+                }
 
+                continue;
+            }
+
+            // if we are starting a string
             if c == '"' {
-                // end of a string
-                in_string = false;
-                ret.push(current); // current can't be empty here
-                current = String::new();
+                in_string = true;
+                // push old current token
+                if !current.is_empty() {
+                    self.pending.push_back(current);
+                    current = String::new();
+                }
+
+                // begin the new current token
+                current.push(c);
+                continue;
             }
 
-            continue;
+            // if we are starting a comment
+            if c == ';' {
+                in_comment = true;
+                // push old current token
+                if !current.is_empty() {
+                    self.pending.push_back(current);
+                    current = String::new();
+                    // don't return here because we want to keep the in_comment state
+                }
+
+                continue;
+            }
+
+            // if we need to split at a token other than whitespace
+            if is_special(c) {
+                // flush the previous token
+                if !current.is_empty() {
+                    self.pending.push_back(current);
+                }
+
+                // add this character (e.g. '(' as a token
+                self.pending.push_back(c.to_string());
+
+                // safe to return because we can't have any state variables true
+                return self.pending.pop_front();
+            }
+
+            // if we need to split at a token we don't keep
+            if c.is_whitespace() {
+                // push current token
+                if !current.is_empty() {
+                    // safe to return because no state variables can be true
+                    return Some(current);
+                }
+
+            // else just add a normal character to the current token
+            } else {
+                current.push(c);
+            }
+        } // end of source iterator
+
+        // flush any remaining stuff
+        if !current.is_empty() {
+            return Some(current);
         }
 
-        // if we are starting a string
-        if c == '"' {
-            in_string = true;
-            // push old current token
-            if !current.is_empty() {
-                ret.push(current);
-                current = String::new();
-            }
-
-            // begin the new current token
-            current.push(c);
-            continue;
-        }
-
-        // if we are starting a comment
-        if c == ';' {
-            in_comment = true;
-            // push old current token
-            if !current.is_empty() {
-                ret.push(current);
-                current = String::new();
-            }
-
-            continue;
-        }
-
-        // if we need to split at a token we keep
-        if special.contains(&c) {
-            // flush the previous token
-            if !current.is_empty() {
-                ret.push(current);
-                current = String::new();
-            }
-
-            // add this token
-            ret.push(c.to_string());
-
-        // if we need to split at a token we don't keep
-        } else if c.is_whitespace() {
-            // push current token
-            if !current.is_empty() {
-                ret.push(current.clone());
-                current.truncate(0);
-            }
-
-        // else just add a normal character to the current token
-        } else {
-            current.push(c);
-        }
+        None
     }
+}
 
-    // flush any remaining non-bracket tokens
-    if !current.is_empty() {
-        ret.push(current.clone());
-    }
-
-    ret
+/// Turn scheme source into a vector of tokens (Strings)
+pub fn tokenise(source: &mut Iterator<Item = char>) -> Vec<String> {
+    let iter = TokenInterator::new(source);
+    iter.collect()
 }
 
 #[cfg(test)]
 mod tests {
-
     fn run_test(tv: &str, expected: &Vec<&str>) {
         let res = super::tokenise(&mut tv.chars());
         assert_eq!(res, *expected);
@@ -119,9 +162,7 @@ mod tests {
     #[test]
     fn single_s_expr() {
         // junk whitespace added to (a be c)
-        let tv = " (a be \tc)\n\t";
-        let expected = vec!["(", "a", "be", "c", ")"];
-        run_test(tv, &expected);
+        run_test(" (a be \tc)\n\t", &vec!["(", "a", "be", "c", ")"]);
     }
 
     #[test]
