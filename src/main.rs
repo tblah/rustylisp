@@ -8,7 +8,7 @@ fn main() {
     );
     println!("{}", test_str);
 
-    let res: Vec<_> = tokenise::tokenise(&test_str);
+    let res: Vec<_> = tokenise::tokenise(&mut test_str.chars());
 
     println!("Tokenised: {:?}", res);
 }

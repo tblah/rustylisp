@@ -1,5 +1,7 @@
+use std::iter::Iterator;
+
 /// Turn scheme source into a vector of tokens (Strings)
-pub fn tokenise(source: &str) -> Vec<String> {
+pub fn tokenise(source: &mut Iterator<Item=char>) -> Vec<String> {
     let mut ret: Vec<String> = Vec::new();
     let mut current = String::new();
 
@@ -9,7 +11,7 @@ pub fn tokenise(source: &str) -> Vec<String> {
     let mut in_string = false; // '"'
     let mut in_comment = false; // ';'
 
-    for c in source.chars() {
+    for c in source {
         // comments end at the end of lines
         if in_comment {
             if c == '\n' {
@@ -110,7 +112,7 @@ pub fn tokenise(source: &str) -> Vec<String> {
 mod tests {
 
     fn run_test(tv: &str, expected: &Vec<&str>) {
-        let res = super::tokenise(&mut String::from(tv));
+        let res = super::tokenise(&mut tv.chars());
         assert_eq!(res, *expected);
     }
 
