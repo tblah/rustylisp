@@ -1,5 +1,8 @@
 #[cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-mod tokenise;
+
+extern crate rustyscheme;
+
+use rustyscheme::tokenise;
 
 fn main() {
     let test_str = String::from(
