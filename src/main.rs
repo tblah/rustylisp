@@ -1,5 +1,4 @@
-#[cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
 extern crate rustyscheme;
 
 use rustyscheme::tokenise;

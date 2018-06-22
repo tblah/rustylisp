@@ -1,13 +1,15 @@
+//! Module for turning a character stream input of scheme source code into an iterator of (string) tokens
+
 use std::collections::VecDeque;
 use std::iter::Iterator;
 
 /// Iterator for tokens
-pub struct TokenInterator<'a> {
+pub struct TokenIterator<'a> {
     source: &'a mut Iterator<Item = char>,
     pending: VecDeque<String>,
 }
 
-impl<'a> TokenInterator<'a> {
+impl<'a> TokenIterator<'a> {
     /// Create a new instance of TokenIterator
     pub fn new(source: &'a mut Iterator<Item = char>) -> Self {
         Self {
@@ -23,7 +25,7 @@ fn is_special(c: char) -> bool {
     c == '(' || c == ')' || c == '\'' || c == '#'
 }
 
-impl<'a> Iterator for TokenInterator<'a> {
+impl<'a> Iterator for TokenIterator<'a> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -148,7 +150,7 @@ impl<'a> Iterator for TokenInterator<'a> {
 
 /// Turn scheme source into a vector of tokens (Strings)
 pub fn tokenise(source: &mut Iterator<Item = char>) -> Vec<String> {
-    let iter = TokenInterator::new(source);
+    let iter = TokenIterator::new(source);
     iter.collect()
 }
 
