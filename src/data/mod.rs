@@ -10,22 +10,10 @@ pub enum SchemeObject {
     Symbol(String),
     /// A string e.g. "HELLO"
     String(String),
-    /// A string form e.g. (add 1 2)
-    Form(SchemeForm),
-}
-
-/// A form: i.e. something that lives in brackets (). This could be code, a list, or a vector
-#[derive(Debug, PartialEq)]
-pub enum SchemeForm {
-    /// A linked list ()
-    List(SchemeList),
+    /// A linked list which is not quoted: (...)
+    CodeList(LinkedList<SchemeObject>),
+    /// A linked list which is quoted: '(...)
+    QuotedList(LinkedList<SchemeObject>),
     /// A vector #()
     Vector(Vec<SchemeObject>),
-}
-
-/// A linked list: this could be code (add 1 2) or a quoted list '(1 2 3)
-#[derive(Debug, PartialEq)]
-pub struct SchemeList {
-    quoted: bool,
-    list: LinkedList<SchemeObject>,
 }

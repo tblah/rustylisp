@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
 extern crate rustyscheme;
 
+use rustyscheme::ast;
 use rustyscheme::tokenise;
 
 fn main() {
@@ -10,7 +11,9 @@ fn main() {
     );
     println!("{}", test_str);
 
-    let res: Vec<_> = tokenise::tokenise(&mut test_str.chars());
+    let tokens = tokenise::tokenise(&mut test_str.chars());
+    let ast = ast::parse_tokens(tokenise::TokenIterator::new(&mut test_str.chars()));
 
-    println!("Tokenised: {:?}", res);
+    println!("\nTokenised: {:?}", tokens);
+    println!("\nAST: {:?}", ast.unwrap());
 }

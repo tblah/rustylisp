@@ -1,7 +1,8 @@
-//! Constructs an AST from the token stream
+//! Constructs an Abstract Syntax Tree from the token stream
 
 use super::data::*;
 use super::tokenise::TokenIterator;
+use std::collections::LinkedList;
 
 /// Possible parse errors
 #[derive(Debug, PartialEq)]
@@ -10,6 +11,8 @@ pub enum ParseError {
     EmptyStream,
     /// Encountered the end of the token iterator before we thought we were done
     PartialStream,
+    /// Found a ')'
+    ClosingBracket,
     /// Syntax Error e.g. #a
     SyntaxError(String),
     /// Unimplemented in parser
@@ -36,7 +39,8 @@ pub fn parse_tokens(mut token_iter: TokenIterator) -> Result<Vec<SchemeObject>, 
     }
 }
 
-/// Consume a stream of tokens  and output the first token generated
+/// Consume a stream of tokens and output the first token generated
+/// This function just dispatches to the right helper function
 fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
     let mode = match token_iter.next() {
         None => return Err(ParseError::EmptyStream),
@@ -45,11 +49,32 @@ fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseErro
 
     // see tokenise.rs::is_special()
     match mode.as_str() {
-        "(" => Err(ParseError::Unimplemented), // (...)
-        ")" => Err(ParseError::SyntaxError(String::from("Unexpected ')'"))),
+        "(" => parse_token_form(token_iter), // (...)
+        ")" => Err(ParseError::ClosingBracket),
         "'" => Err(ParseError::Unimplemented), // quoted
-        "#" => parse_token_hash(token_iter), // #t, #f, #(...)
-        s => parse_token_other(s), // "string", symbol
+        "#" => parse_token_hash(token_iter),   // #t, #f, #(...)
+        s => parse_token_other(s),             // "string", symbol
+    }
+}
+
+/// Recursively parses a form (...)
+fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+    let mut lst = LinkedList::new();
+
+    loop { // parse each item in this list
+        let obj = match parse_token(token_iter) {
+            Ok(o) => o,
+            Err(ParseError::ClosingBracket) => break,
+            Err(e) => return Err(e),
+        };
+
+        lst.push_back(obj);
+    }
+
+    if lst.is_empty() {
+        Err(ParseError::SyntaxError(String::from("Empty form: '()'")))
+    } else {
+        Ok(SchemeObject::CodeList(lst))
     }
 }
 
@@ -57,7 +82,7 @@ fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseErro
 fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
     match parse_token(token_iter)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
-        SchemeObject::Form(_) => Err(ParseError::Unimplemented), // #(...)
+        SchemeObject::CodeList(_) => Err(ParseError::Unimplemented), // #(...)
         obj => Err(ParseError::SyntaxError(format!(
             "Syntax error: # followed by {:?}",
             obj
@@ -65,8 +90,9 @@ fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
     }
 }
 
+/// helper function for `parse_token_hash`
 /// "t" -> true, "f" -> false
-/// Separate from `parse_token_hash` because match is awkward with String
+/// Separate from `parse_token_hash` because `match` is awkward with `String`
 fn string_to_bool(s: &str) -> Result<SchemeObject, ParseError> {
     match s {
         "t" => Ok(SchemeObject::Bool(true)),
@@ -78,14 +104,15 @@ fn string_to_bool(s: &str) -> Result<SchemeObject, ParseError> {
     }
 }
 
-/// Parse a symbol or a string
+/// Parse things which aren't preceded by some kind of modifier token
 fn parse_token_other(token: &str) -> Result<SchemeObject, ParseError> {
     // is it a string?
     if token.starts_with('"') {
         if token.len() > 1 {
-            let end = token.len() - 1;
+            let end = token.len() - 1; // remove closing '"'
             Ok(SchemeObject::String(String::from(&token[1..end])))
-        } else { // too short to have an ending '"'
+        } else {
+            // too short to have an ending '"'
             Err(ParseError::PartialStream)
         }
     } else if token.is_empty() {
@@ -100,7 +127,8 @@ fn parse_token_other(token: &str) -> Result<SchemeObject, ParseError> {
 #[cfg(test)]
 mod tests {
     use ast::ParseError;
-    use data::SchemeObject;
+    use data::*;
+    use std::collections::LinkedList;
     use tokenise::tokenise;
     use tokenise::TokenIterator;
 
@@ -148,8 +176,34 @@ mod tests {
     }
 
     #[test]
-    fn stray_bracket() {
-        let expected = ParseError::SyntaxError(String::from("Unexpected ')'"));
-        run_test(")", Err(expected))
+    fn simple_form() {
+        let mut lst = LinkedList::new();
+        lst.push_back(SchemeObject::Symbol(String::from("one")));
+        lst.push_back(SchemeObject::Symbol(String::from("two")));
+
+        let expected = vec![SchemeObject::CodeList(lst)];
+        run_test("(one two)", Ok(expected))
+    }
+
+    #[test]
+    fn nested_form() {
+        let mut inner_lst = LinkedList::new();
+        inner_lst.push_back(SchemeObject::Symbol(String::from("one")));
+        inner_lst.push_back(SchemeObject::Symbol(String::from("two")));
+        let inner_obj = SchemeObject::CodeList(inner_lst);
+
+        let mut outer_lst = LinkedList::new();
+        outer_lst.push_back(inner_obj);
+        outer_lst.push_back(SchemeObject::String(String::from("three")));
+        let outer_obj = SchemeObject::CodeList(outer_lst);
+
+        let expected = vec![outer_obj];
+        run_test("((one two) \"three\")", Ok(expected))
+    }
+
+    #[test]
+    fn empty_form() {
+        let expected = ParseError::SyntaxError(String::from("Empty form: '()'"));
+        run_test("()", Err(expected))
     }
 }
