@@ -2,7 +2,7 @@
 use std::collections::LinkedList;
 
 /// Representation of a scheme object
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum SchemeObject {
     /// A boolean value
     Bool(bool),

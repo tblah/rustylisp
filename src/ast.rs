@@ -3,6 +3,7 @@
 use super::data::*;
 use super::tokenise::TokenIterator;
 use std::collections::LinkedList;
+use std::iter::FromIterator;
 
 /// Possible parse errors
 #[derive(Debug, PartialEq)]
@@ -15,8 +16,6 @@ pub enum ParseError {
     ClosingBracket,
     /// Syntax Error e.g. #a
     SyntaxError(String),
-    /// Unimplemented in parser
-    Unimplemented,
 }
 
 /// fully consume a token iterator to produce a list of scheme objects
@@ -47,11 +46,12 @@ fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseErro
         Some(s) => s,
     };
 
+    // dispatches to helper functions by the starting symbol
     // see tokenise.rs::is_special()
     match mode.as_str() {
         "(" => parse_token_form(token_iter), // (...)
         ")" => Err(ParseError::ClosingBracket),
-        "'" => Err(ParseError::Unimplemented), // quoted
+        "'" => parse_token_quoted(token_iter), // quoted
         "#" => parse_token_hash(token_iter),   // #t, #f, #(...)
         s => parse_token_other(s),             // "string", symbol
     }
@@ -82,11 +82,19 @@ fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
 fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
     match parse_token(token_iter)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
-        SchemeObject::CodeList(_) => Err(ParseError::Unimplemented), // #(...)
+        SchemeObject::CodeList(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
         obj => Err(ParseError::SyntaxError(format!(
             "Syntax error: # followed by {:?}",
             obj
         ))),
+    }
+}
+
+/// Parse a quoted token
+fn parse_token_quoted(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+    match parse_token(token_iter)? {
+        SchemeObject::CodeList(lst) => Ok(SchemeObject::QuotedList(lst)),
+        obj => Ok(obj),
     }
 }
 
@@ -129,6 +137,7 @@ mod tests {
     use ast::ParseError;
     use data::*;
     use std::collections::LinkedList;
+    use std::iter::FromIterator;
     use tokenise::tokenise;
     use tokenise::TokenIterator;
 
@@ -205,5 +214,28 @@ mod tests {
     fn empty_form() {
         let expected = ParseError::SyntaxError(String::from("Empty form: '()'"));
         run_test("()", Err(expected))
+    }
+
+    #[test]
+    fn vector() {
+        let expected = vec![SchemeObject::Vector(vec![SchemeObject::Bool(true)])];
+        run_test("#(#t)", Ok(expected))
+    }
+
+    #[test]
+    fn quotes() {
+        let scm = "'#t 'symbol '\"string\" '(one two) '#(one two)";
+        let v = vec!(SchemeObject::Symbol(String::from("one")),
+                     SchemeObject::Symbol(String::from("two")));
+        let l = LinkedList::from_iter(v.clone());
+
+        let mut expected = Vec::new();
+        expected.push(SchemeObject::Bool(true));
+        expected.push(SchemeObject::Symbol(String::from("symbol")));
+        expected.push(SchemeObject::String(String::from("string")));
+        expected.push(SchemeObject::QuotedList(l));
+        expected.push(SchemeObject::Vector(v));
+
+        run_test(scm, Ok(expected));
     }
 }
