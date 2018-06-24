@@ -18,24 +18,32 @@ pub enum ParseError {
     SyntaxError(String),
 }
 
+/// Iterator over SchemeObjects
+pub struct ObjectIterator<'a> {
+    source: TokenIterator<'a>,
+}
+
+impl<'a> ObjectIterator<'a> {
+    /// Create a new instance of ObjectIterator
+    pub fn new(source: TokenIterator<'a>) -> Self {
+        Self { source }
+    }
+}
+
+impl<'a> Iterator for ObjectIterator<'a> {
+    type Item = Result<SchemeObject, ParseError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match parse_token(&mut self.source) {
+            Err(ParseError::EmptyStream) => None,
+            res => Some(res),
+        }
+    }
+}
+
 /// fully consume a token iterator to produce a list of scheme objects
-pub fn parse_tokens(mut token_iter: TokenIterator) -> Result<Vec<SchemeObject>, ParseError> {
-    let mut out = Vec::new();
-    loop {
-        let res = parse_token(&mut token_iter);
-
-        match res {
-            Ok(obj) => out.push(obj),
-            Err(ParseError::EmptyStream) => break,
-            Err(e) => return Err(e),
-        };
-    }
-
-    if out.is_empty() {
-        Err(ParseError::PartialStream)
-    } else {
-        Ok(out)
-    }
+pub fn parse_tokens(token_iter: TokenIterator) -> Result<Vec<SchemeObject>, ParseError> {
+    ObjectIterator::new(token_iter).collect()
 }
 
 /// Consume a stream of tokens and output the first token generated
@@ -61,7 +69,8 @@ fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseErro
 fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
     let mut lst = LinkedList::new();
 
-    loop { // parse each item in this list
+    loop {
+        // parse each item in this list
         let obj = match parse_token(token_iter) {
             Ok(o) => o,
             Err(ParseError::ClosingBracket) => break,
@@ -225,11 +234,13 @@ mod tests {
     #[test]
     fn quotes() {
         let scm = "'#t 'symbol '\"string\" '(one two) '#(one two)";
-        let v = vec!(SchemeObject::Symbol(String::from("one")),
-                     SchemeObject::Symbol(String::from("two")));
+        let v = vec![
+            SchemeObject::Symbol(String::from("one")),
+            SchemeObject::Symbol(String::from("two")),
+        ];
         let l = LinkedList::from_iter(v.clone());
 
-        let mut expected = Vec::new();
+        let mut expected = Vec::with_capacity(5);
         expected.push(SchemeObject::Bool(true));
         expected.push(SchemeObject::Symbol(String::from("symbol")));
         expected.push(SchemeObject::String(String::from("string")));
