@@ -10,4 +10,20 @@
 #![warn(unused_qualifications)]
 pub mod ast;
 pub mod data;
+pub mod stdlib;
 pub mod tokenise;
+
+/// Possible parse errors
+#[derive(Debug, PartialEq)]
+pub enum ParseError {
+    /// The token stream was empty
+    EmptyStream,
+    /// Encountered the end of the token iterator before we thought we were done
+    PartialStream,
+    /// Found a ')'
+    ClosingBracket,
+    /// Syntax Error e.g. #a
+    SyntaxError(String),
+    /// Name lookup error
+    NameLookup(String),
+}

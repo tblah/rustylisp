@@ -4,19 +4,7 @@ use super::data::*;
 use super::tokenise::TokenIterator;
 use std::collections::LinkedList;
 use std::iter::FromIterator;
-
-/// Possible parse errors
-#[derive(Debug, PartialEq)]
-pub enum ParseError {
-    /// The token stream was empty
-    EmptyStream,
-    /// Encountered the end of the token iterator before we thought we were done
-    PartialStream,
-    /// Found a ')'
-    ClosingBracket,
-    /// Syntax Error e.g. #a
-    SyntaxError(String),
-}
+use ParseError;
 
 /// Iterator over `SchemeObject`s
 pub struct ObjectIterator<'a> {
