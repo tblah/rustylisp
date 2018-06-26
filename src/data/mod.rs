@@ -1,5 +1,8 @@
 //! Data model
+
 use std::collections::LinkedList;
+
+pub mod env;
 
 /// Representation of a scheme object
 #[derive(Debug, PartialEq, Clone)]

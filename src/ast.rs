@@ -18,7 +18,7 @@ pub enum ParseError {
     SyntaxError(String),
 }
 
-/// Iterator over SchemeObjects
+/// Iterator over `SchemeObject`s
 pub struct ObjectIterator<'a> {
     source: TokenIterator<'a>,
 }
