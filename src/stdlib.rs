@@ -16,7 +16,7 @@ pub fn get_std_env() -> Environment {
 }
 
 fn disp(lst: &LinkedList<Rc<SchemeObject>>, _env: &mut Environment) -> Rc<RuntimeObject> {
-    for arg in lst.iter() {
+    for arg in lst {
         print!("{:?} ", arg); // todo this shouldn't be debug printing
     }
 
