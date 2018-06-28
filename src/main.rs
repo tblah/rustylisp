@@ -18,7 +18,7 @@ fn main() {
     println!("\nTokenised: {:?}", tokens);
     println!("\nAST: {:?}", &ast);
     println!("\nExecuting...");
-    let mut env = get_std_env();
-    let res: Vec<_> = ast.iter().map(|scm_obj| scm_obj.exec(&mut env)).collect();
+    let env = get_std_env();
+    let res: Vec<_> = ast.iter().map(|scm_obj| scm_obj.exec(&env)).collect();
     println!("\nGot {:?}", res);
 }

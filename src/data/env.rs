@@ -16,11 +16,13 @@ pub struct Environment {
 
 impl Environment {
     /// Instance new Environment
-    pub fn new(parent: Option<Rc<RefCell<Self>>>) -> Self {
-        Self {
+    pub fn new(parent: Option<Rc<RefCell<Self>>>) -> Rc<RefCell<Self>> {
+        let env = Self {
             parent,
             names: HashMap::new(),
-        }
+        };
+
+        Rc::new(RefCell::new(env))
     }
 
     /// Look up variable in environment
@@ -69,17 +71,17 @@ mod tests {
         let get_obj = || RuntimeObject::SchemeObject(SchemeObject::String(String::from("obj")));
         let exp_res = Some(Rc::new(get_obj()));
 
-        let mut env = Environment::new(None);
-        assert!(env.lookup(&name).is_none());
-        assert!(env.lookup(&g_name).is_none());
+        let env = Environment::new(None);
+        assert!(env.borrow().lookup(&name).is_none());
+        assert!(env.borrow().lookup(&g_name).is_none());
 
-        env.set(name.clone(), get_obj());
-        assert_eq!(env.lookup(&name), exp_res);
-        assert!(env.lookup(&g_name).is_none());
+        env.borrow_mut().set(name.clone(), get_obj());
+        assert_eq!(env.borrow().lookup(&name), exp_res);
+        assert!(env.borrow().lookup(&g_name).is_none());
 
-        env.set_global(g_name.clone(), get_obj());
-        assert_eq!(env.lookup(&name), exp_res);
-        assert_eq!(env.lookup(&g_name), exp_res);
+        env.borrow_mut().set_global(g_name.clone(), get_obj());
+        assert_eq!(env.borrow().lookup(&name), exp_res);
+        assert_eq!(env.borrow().lookup(&g_name), exp_res);
     }
 
     #[test]
@@ -89,35 +91,25 @@ mod tests {
         let get_obj = || RuntimeObject::SchemeObject(SchemeObject::String(String::from("obj")));
         let exp_res = Some(Rc::new(get_obj()));
 
-        let g_env = Rc::new(RefCell::new(Environment::new(None)));
-        let mut env = Environment::new(Some(g_env.clone()));
+        let g_env = Environment::new(None);
+        let env = Environment::new(Some(g_env.clone()));
 
-        assert!(env.lookup(&name).is_none());
-        assert!(env.lookup(&g_name).is_none());
+        assert!(env.borrow().lookup(&name).is_none());
+        assert!(env.borrow().lookup(&g_name).is_none());
         assert!(g_env.borrow().lookup(&name).is_none());
         assert!(g_env.borrow().lookup(&g_name).is_none());
 
-        env.set(name.clone(), get_obj());
-        assert_eq!(env.lookup(&name), exp_res);
-        assert!(env.lookup(&g_name).is_none());
+        env.borrow_mut().set(name.clone(), get_obj());
+        assert_eq!(env.borrow().lookup(&name), exp_res);
+        assert!(env.borrow().lookup(&g_name).is_none());
         assert!(g_env.borrow().lookup(&name).is_none());
         assert!(g_env.borrow().lookup(&g_name).is_none());
 
-        env.set_global(g_name.clone(), get_obj());
+        env.borrow_mut().set_global(g_name.clone(), get_obj());
 
-        assert_eq!(env.lookup(&name), exp_res);
-        assert_eq!(env.lookup(&g_name), exp_res);
+        assert_eq!(env.borrow().lookup(&name), exp_res);
+        assert_eq!(env.borrow().lookup(&g_name), exp_res);
         assert!(g_env.borrow().lookup(&name).is_none());
         assert_eq!(g_env.borrow().lookup(&g_name), exp_res);
     }
-
-    /*    /// ugly clone wrapper for these tests *only*
-    impl Clone for RuntimeObject {
-        fn clone(&self) -> Self {
-            match self {
-                RuntimeObject::SchemeObject(s) => RuntimeObject::SchemeObject(s.clone()),
-                _ => panic!("I can only clone scheme objects"),
-            }
-        }
-    }*/
 }

@@ -3,14 +3,16 @@
 use data::env::Environment;
 use data::runtime::RuntimeObject;
 use data::SchemeObject;
+use std::cell::RefCell;
 use std::collections::LinkedList;
 use std::rc::Rc;
 
 /// Returns an environment containing the standard library
-pub fn get_std_env() -> Environment {
-    let mut env = Environment::new(None);
+pub fn get_std_env() -> Rc<RefCell<Environment>> {
+    let env = Environment::new(None);
 
-    env.set(String::from("disp"), RuntimeObject::RFunc(disp));
+    env.borrow_mut()
+        .set(String::from("disp"), RuntimeObject::RFunc(disp));
 
     env
 }

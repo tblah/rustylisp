@@ -5,6 +5,7 @@ use data::env::Environment;
 use data::SchemeObject;
 use ParseError;
 
+use std::cell::RefCell;
 use std::collections::LinkedList;
 use std::fmt;
 use std::rc::Rc;
@@ -29,10 +30,10 @@ pub enum RuntimeObject {
 /// helper function for `RuntimeObject::exec`
 fn eval_args(
     args: &LinkedList<SchemeObject>, // TODO if this was a list of Rc<> we could avoid a clone
-    env: &mut Environment,
+    env: &Rc<RefCell<Environment>>,
 ) -> Result<LinkedList<Rc<SchemeObject>>, ParseError> {
     let mut ret = LinkedList::new();
-    let results = args.iter().map(|arg| arg.exec(env));
+    let results = args.iter().map(|arg| arg.exec(&env));
 
     for res in results {
         let runtime_obj = res?;
@@ -51,13 +52,13 @@ impl RuntimeObject {
     pub fn exec(
         &self,
         args: &LinkedList<SchemeObject>,
-        env: &mut Environment,
+        env: &Rc<RefCell<Environment>>,
     ) -> Result<Rc<Self>, ParseError> {
         match self {
             RuntimeObject::SchemeObject(o) => o.exec(env),
             RuntimeObject::RFunc(ref f) => {
-                let evaled_args = eval_args(args, env)?;
-                Ok(f(&evaled_args, env))
+                let evaled_args = eval_args(args, &env.clone())?;
+                Ok(f(&evaled_args, &mut env.borrow_mut()))
             }
             RuntimeObject::SFunc(_, _) => panic!("TODO - evaluating scheme functions"),
             RuntimeObject::None => Ok(Rc::new(RuntimeObject::None)),
