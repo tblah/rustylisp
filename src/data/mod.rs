@@ -126,7 +126,7 @@ fn scm_let(
     let mut tail_iter = tail.iter();
 
     // check the number of arguments
-    if tail.len() == 2 {
+    if tail.len() >= 2 {
         // this should be the list of lists of variables and mappings
         if let SchemeObject::CodeList(lst) = tail_iter.next().unwrap() {
             let mut local_env = Environment::new(Some(env.clone()));
@@ -143,8 +143,22 @@ fn scm_let(
                     )));
                 }
             }
-            // execute the second argument with our new binding
-            tail_iter.next().unwrap().exec(&local_env)
+            // execute the code arguments
+            let mut last_ret = Err(ParseError::SyntaxError(
+                String::from("No let result")));
+
+            for code in tail_iter {
+                last_ret = code.exec(&local_env);
+
+                // return early if we encounter an error
+                if last_ret.is_err() {
+                    return last_ret;
+                }
+            }
+
+            // return the result of the last operation
+            last_ret
+
         } else {
             // the first argument didn't look right
             Err(ParseError::SyntaxError(String::from(
@@ -154,7 +168,7 @@ fn scm_let(
     } else {
         // incorrect number of arguments
         Err(ParseError::SyntaxError(String::from(
-            "let should have 2 arguments",
+            "let should have at least 2 arguments",
         )))
     }
 }
@@ -282,6 +296,28 @@ mod test {
                             (cat hello space world \"!\"))";
         let expected =
             RuntimeObject::SchemeObject(SchemeObject::String(String::from("Hello world!")));
+
+        exec_codelist(program, vec![expected])
+    }
+
+    #[test]
+    fn shadowing_define_let() {
+        let program = "(define test \"global binding\")
+                       (let ((test \"local binding\"))
+                            (cat test))";
+        let expected =
+            RuntimeObject::SchemeObject(SchemeObject::String(String::from("local binding")));
+
+        exec_codelist(program, vec![RuntimeObject::None, expected])
+    }
+
+    #[test]
+    fn shadowing_let_define() {
+        let program = "(let ((test \"local binding\"))
+                            (define test \"global binding\")
+                            (cat test))";
+        let expected =
+            RuntimeObject::SchemeObject(SchemeObject::String(String::from("global binding")));
 
         exec_codelist(program, vec![expected])
     }

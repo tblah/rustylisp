@@ -41,11 +41,20 @@ impl Environment {
         self.names.insert(name, Rc::new(val));
     }
 
-    /// Set variable in the global environment
+    /// Set variable in the global environment and change the local environment to avoid shadowing
     pub fn set_global(&mut self, name: String, val: RuntimeObject) {
+        // we don't want any local variables to shadow the new definition
+        self.names.remove(&name.clone());
+        self.set_global_priv(name, val);
+    }
+
+    /// Only do the traversal to the global environment. Don't touch the local environment
+    fn set_global_priv(&mut self, name: String, val: RuntimeObject) {
         match self.parent {
             None => self.set(name, val), // if self has no parent then it is global
-            Some(ref mut p) => p.borrow_mut().set(name, val),
+            Some(ref mut p) => {
+                p.borrow_mut().set_global(name, val);
+            },
         };
     }
 
