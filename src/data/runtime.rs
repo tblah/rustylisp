@@ -14,7 +14,7 @@ use std::rc::Rc;
 /// The trait implementations are a bit fragile so read the source first
 pub enum RuntimeObject {
     /// A `SchemeObject`
-    SchemeObject(SchemeObject),
+    SchemeObject(Rc<SchemeObject>),
     /// A rust function
     RFunc(fn(&LinkedList<Rc<SchemeObject>>, &mut Environment) -> Rc<RuntimeObject>),
     /// A scheme function,
@@ -38,8 +38,8 @@ fn eval_args(
     for res in results {
         let runtime_obj = res?;
         let scm_obj = match *runtime_obj {
-            RuntimeObject::SchemeObject(ref o) => Rc::new(o.clone()),
-            _ => panic!("Trying to pass a runtime object as an argument!"),
+            RuntimeObject::SchemeObject(ref rc) => rc.clone(),
+            _ => panic!("TODO: Trying to pass a runtime object as an argument!"),
         };
         ret.push_back(scm_obj);
     }
@@ -60,10 +60,42 @@ impl RuntimeObject {
                 let evaled_args = eval_args(args, &env.clone())?;
                 Ok(f(&evaled_args, &mut env.borrow_mut()))
             }
-            RuntimeObject::SFunc(_, _) => panic!("TODO - evaluating scheme functions"),
+            RuntimeObject::SFunc(code_lst, arg_names) => exec_sfunc(code_lst, arg_names, args, env),
             RuntimeObject::None => Ok(Rc::new(RuntimeObject::None)),
         }
     }
+}
+
+/// Helper function for `RuntimeObject::exec`
+/// Evaluates scheme functions (`RuntimeObject::SFunc`)
+fn exec_sfunc(
+    code_list: &SchemeObject,
+    arg_names: &[String],
+    func_args: &LinkedList<SchemeObject>,
+    g_env: &Rc<RefCell<Environment>>,
+) -> Result<Rc<RuntimeObject>, ParseError> {
+    // did we get the correct number of arguments
+    // TODO variable number of arguments
+    if func_args.len() != arg_names.len() {
+        return Err(ParseError::SyntaxError(format!(
+            "Expected {} arguments, got {}",
+            arg_names.len(),
+            func_args.len()
+        )));
+    }
+
+    // evaluate arguments
+    let evaled_args = eval_args(func_args, &g_env.clone())?;
+
+    // add arguments to local environment
+    let local_env = Environment::new(Some(g_env.clone()));
+    for (name, arg) in arg_names.iter().zip(evaled_args) {
+        local_env
+            .borrow_mut()
+            .set(name.clone(), RuntimeObject::SchemeObject(arg));
+    }
+
+    code_list.exec(&local_env)
 }
 
 impl PartialEq for RuntimeObject {

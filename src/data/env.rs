@@ -53,8 +53,8 @@ impl Environment {
         match self.parent {
             None => self.set(name, val), // if self has no parent then it is global
             Some(ref mut p) => {
-                p.borrow_mut().set_global(name, val);
-            },
+                p.borrow_mut().set_global_priv(name, val);
+            }
         };
     }
 
@@ -77,7 +77,8 @@ mod tests {
     fn one_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || RuntimeObject::SchemeObject(SchemeObject::String(String::from("obj")));
+        let get_obj =
+            || RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("obj"))));
         let exp_res = Some(Rc::new(get_obj()));
 
         let env = Environment::new(None);
@@ -97,7 +98,8 @@ mod tests {
     fn two_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || RuntimeObject::SchemeObject(SchemeObject::String(String::from("obj")));
+        let get_obj =
+            || RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("obj"))));
         let exp_res = Some(Rc::new(get_obj()));
 
         let g_env = Environment::new(None);
