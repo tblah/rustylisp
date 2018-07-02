@@ -92,7 +92,7 @@ fn exec_sfunc(
     for (name, arg) in arg_names.iter().zip(evaled_args) {
         local_env
             .borrow_mut()
-            .set(name.clone(), RuntimeObject::SchemeObject(arg));
+            .set(name.clone(), Rc::new(RuntimeObject::SchemeObject(arg)));
     }
 
     code_list.exec(&local_env)

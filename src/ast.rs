@@ -68,11 +68,7 @@ fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
         lst.push_back(obj);
     }
 
-    if lst.is_empty() {
-        Err(ParseError::SyntaxError(String::from("Empty form: '()'")))
-    } else {
-        Ok(SchemeObject::CodeList(lst))
-    }
+    Ok(SchemeObject::CodeList(lst))
 }
 
 /// Parse a hash token
@@ -205,12 +201,6 @@ mod tests {
 
         let expected = vec![outer_obj];
         run_test("((one two) \"three\")", Ok(expected))
-    }
-
-    #[test]
-    fn empty_form() {
-        let expected = ParseError::SyntaxError(String::from("Empty form: '()'"));
-        run_test("()", Err(expected))
     }
 
     #[test]

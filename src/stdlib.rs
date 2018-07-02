@@ -12,7 +12,7 @@ pub fn get_std_env() -> Rc<RefCell<Environment>> {
     let env = Environment::new(None);
 
     env.borrow_mut()
-        .set(String::from("disp"), RuntimeObject::RFunc(disp));
+        .set(String::from("disp"), Rc::new(RuntimeObject::RFunc(disp)));
 
     env
 }

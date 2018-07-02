@@ -37,19 +37,19 @@ impl Environment {
     }
 
     /// Set variable in this environment
-    pub fn set(&mut self, name: String, val: RuntimeObject) {
-        self.names.insert(name, Rc::new(val));
+    pub fn set(&mut self, name: String, val: Rc<RuntimeObject>) {
+        self.names.insert(name, val);
     }
 
     /// Set variable in the global environment and change the local environment to avoid shadowing
-    pub fn set_global(&mut self, name: String, val: RuntimeObject) {
+    pub fn set_global(&mut self, name: String, val: Rc<RuntimeObject>) {
         // we don't want any local variables to shadow the new definition
         self.names.remove(&name.clone());
         self.set_global_priv(name, val);
     }
 
     /// Only do the traversal to the global environment. Don't touch the local environment
-    fn set_global_priv(&mut self, name: String, val: RuntimeObject) {
+    fn set_global_priv(&mut self, name: String, val: Rc<RuntimeObject>) {
         match self.parent {
             None => self.set(name, val), // if self has no parent then it is global
             Some(ref mut p) => {
@@ -77,9 +77,12 @@ mod tests {
     fn one_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj =
-            || RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("obj"))));
-        let exp_res = Some(Rc::new(get_obj()));
+        let get_obj = || {
+            Rc::new(RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(
+                String::from("obj"),
+            ))))
+        };
+        let exp_res = Some(get_obj());
 
         let env = Environment::new(None);
         assert!(env.borrow().lookup(&name).is_none());
@@ -98,9 +101,12 @@ mod tests {
     fn two_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj =
-            || RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("obj"))));
-        let exp_res = Some(Rc::new(get_obj()));
+        let get_obj = || {
+            Rc::new(RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(
+                String::from("obj"),
+            ))))
+        };
+        let exp_res = Some(get_obj());
 
         let g_env = Environment::new(None);
         let env = Environment::new(Some(g_env.clone()));
