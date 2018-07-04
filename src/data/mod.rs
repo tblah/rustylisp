@@ -71,7 +71,7 @@ fn exec_codelist(
             match cmd.as_str() {
                 "define" => define(&tail, &env),
                 "let" => scm_let(&tail, &env),
-                "lambda" => lambda(&tail),
+                "lambda" => lambda(&tail, env.clone()),
                 "if" => panic!("TODO"),
                 _ => function_call(scm_obj, &tail, env),
             }
@@ -122,7 +122,7 @@ fn apply_biding(
                 let body = tail_iter.next().unwrap().clone();
 
                 // get the function argument names and construct the `RuntimeObject`
-                let rt_obj = read_scm_fn(&mut lst_iter, body)?;
+                let rt_obj = read_scm_fn(&mut lst_iter, body, env.clone())?;
                 Ok((name.clone(), Rc::new(rt_obj)))
             }
             // error
@@ -141,6 +141,7 @@ fn apply_biding(
 fn read_scm_fn(
     name_iter: &mut Iterator<Item = &SchemeObject>,
     body: SchemeObject,
+    env: Rc<RefCell<Environment>>,
 ) -> Result<RuntimeObject, ParseError> {
     // read in argument names
     let mut arg_names = Vec::new();
@@ -154,10 +155,13 @@ fn read_scm_fn(
         }
     }
 
-    Ok(RuntimeObject::SFunc(body, arg_names))
+    Ok(RuntimeObject::SFunc(body, arg_names, env))
 }
 
-fn lambda(tail: &LinkedList<SchemeObject>) -> Result<Rc<RuntimeObject>, ParseError> {
+fn lambda(
+    tail: &LinkedList<SchemeObject>,
+    env: Rc<RefCell<Environment>>,
+) -> Result<Rc<RuntimeObject>, ParseError> {
     // two arguments: argument names and the function body
     // TODO additional arguments are more code statements for the fn body like in a let?
     if tail.len() != 2 {
@@ -183,7 +187,7 @@ fn lambda(tail: &LinkedList<SchemeObject>) -> Result<Rc<RuntimeObject>, ParseErr
     let body = tail_iter.next().unwrap().clone();
 
     // construct the RuntimeObject
-    Ok(Rc::new(read_scm_fn(&mut arg_names, body)?))
+    Ok(Rc::new(read_scm_fn(&mut arg_names, body, env)?))
 }
 
 /// helper function for `exec_codelist`
@@ -299,12 +303,17 @@ mod test {
     }
 
     /// implementation of string concatenation for use in tests
-    fn cat(lst: &LinkedList<Rc<SchemeObject>>, _env: &mut Environment) -> Rc<RuntimeObject> {
+    fn cat(lst: &LinkedList<Rc<RuntimeObject>>, _env: &mut Environment) -> Rc<RuntimeObject> {
         let mut out = String::new();
 
         for arg in lst {
             match arg.deref() {
-                SchemeObject::String(s) => out += s,
+                RuntimeObject::SchemeObject(rc) => {
+                    match rc.deref() {
+                        SchemeObject::String(s) => out += s,
+                        _ => panic!("Expected string arguments"),
+                    }
+                },
                 _ => panic!("Expected string arguments"),
             }
         }
@@ -336,9 +345,7 @@ mod test {
 
         for (exp, code) in expected.iter().zip(syntax) {
             let rc = code.unwrap().exec(&env).unwrap();
-            // we have to mess about because we only borrow exp
-            let res = Rc::try_unwrap(rc).unwrap();
-            assert_eq!(&res, exp);
+            assert_eq!(rc.deref(), exp);
         }
     }
 
@@ -469,5 +476,30 @@ mod test {
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi Tom"))));
 
         exec_codelist(program, vec![RuntimeObject::None, expected]);
+    }
+
+    #[test]
+    fn higher_order_functions() {
+        let program = "(define (call_with_hi fn) (lambda () (fn \"hi\")))
+                     (define say_hi (call_with_hi cat))
+                     (say_hi)";
+        let expected =
+            RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi"))));
+
+        exec_codelist(program, vec![RuntimeObject::None, RuntimeObject::None, expected]);
+
+    }
+
+    #[test]
+    fn let_over_lambda() {
+        let program = "(define ret_hi
+                         (let ((hi \"hi\"))
+                           (lambda () hi)))
+                       (ret_hi)";
+        let expected =
+            RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi"))));
+
+        exec_codelist(program, vec![RuntimeObject::None, expected]);
+
     }
 }

@@ -16,11 +16,12 @@ pub enum RuntimeObject {
     /// A `SchemeObject`
     SchemeObject(Rc<SchemeObject>),
     /// A rust function
-    RFunc(fn(&LinkedList<Rc<SchemeObject>>, &mut Environment) -> Rc<RuntimeObject>),
+    RFunc(fn(&LinkedList<Rc<RuntimeObject>>, &mut Environment) -> Rc<RuntimeObject>),
     /// A scheme function,
     SFunc(
         SchemeObject, // Code list
         Vec<String>,  // argument names
+        Rc<RefCell<Environment>>, // closure environment
     ),
     /// None (for use as a function return value)
     None,
@@ -31,17 +32,12 @@ pub enum RuntimeObject {
 fn eval_args(
     args: &LinkedList<SchemeObject>, // TODO if this was a list of Rc<> we could avoid a clone
     env: &Rc<RefCell<Environment>>,
-) -> Result<LinkedList<Rc<SchemeObject>>, ParseError> {
+) -> Result<LinkedList<Rc<RuntimeObject>>, ParseError> {
     let mut ret = LinkedList::new();
     let results = args.iter().map(|arg| arg.exec(&env));
 
     for res in results {
-        let runtime_obj = res?;
-        let scm_obj = match *runtime_obj {
-            RuntimeObject::SchemeObject(ref rc) => rc.clone(),
-            _ => panic!("TODO: Trying to pass a runtime object as an argument!"),
-        };
-        ret.push_back(scm_obj);
+        ret.push_back(res?);
     }
 
     Ok(ret)
@@ -51,16 +47,16 @@ impl RuntimeObject {
     /// evaluates a runtime object
     pub fn exec(
         &self,
-        args: &LinkedList<SchemeObject>,
-        env: &Rc<RefCell<Environment>>,
-    ) -> Result<Rc<Self>, ParseError> {
+        args: &LinkedList<SchemeObject>, env: &Rc<RefCell<Environment>>,) -> Result<Rc<Self>, ParseError> {
         match self {
             RuntimeObject::SchemeObject(o) => o.exec(env),
             RuntimeObject::RFunc(ref f) => {
                 let evaled_args = eval_args(args, &env.clone())?;
                 Ok(f(&evaled_args, &mut env.borrow_mut()))
             }
-            RuntimeObject::SFunc(code_lst, arg_names) => exec_sfunc(code_lst, arg_names, args, env),
+            RuntimeObject::SFunc(code_lst, arg_names, local_env) => {
+                exec_sfunc(code_lst, arg_names, args, local_env)
+            },
             RuntimeObject::None => Ok(Rc::new(RuntimeObject::None)),
         }
     }
@@ -92,7 +88,7 @@ fn exec_sfunc(
     for (name, arg) in arg_names.iter().zip(evaled_args) {
         local_env
             .borrow_mut()
-            .set(name.clone(), Rc::new(RuntimeObject::SchemeObject(arg)));
+            .set(name.clone(), arg);
     }
 
     code_list.exec(&local_env)
@@ -103,7 +99,7 @@ impl PartialEq for RuntimeObject {
         use self::RuntimeObject::{None, SFunc, SchemeObject};
         match (self, other) {
             (SchemeObject(s1), SchemeObject(s2)) => s1 == s2,
-            (SFunc(s1, v1), SFunc(s2, v2)) => s1 == s2 && v1 == v2,
+            (SFunc(s1, v1, e1), SFunc(s2, v2, e2)) => s1 == s2 && v1 == v2 && e1 == e2,
             (None, None) => true,
             _ => false, // different types or rust functions
         }
@@ -114,7 +110,7 @@ impl fmt::Debug for RuntimeObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             RuntimeObject::SchemeObject(s) => s.fmt(f),
-            RuntimeObject::SFunc(_, names) => write!(f, "Scheme function with args {:?}", names),
+            RuntimeObject::SFunc(_, names, _) => write!(f, "Scheme function with args {:?}", names),
             RuntimeObject::RFunc(_) => write!(f, "Built-in function"),
             RuntimeObject::None => write!(f, "None"),
         }

@@ -65,6 +65,11 @@ impl Environment {
             Some(ref rc) => Some(rc.clone()),
         }
     }
+
+    /// Set the parent
+    pub fn set_parent(&mut self, parent: Option<Rc<RefCell<Self>>>) {
+        self.parent = parent;
+    }
 }
 
 #[cfg(test)]
