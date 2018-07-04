@@ -28,17 +28,19 @@ pub enum SchemeObject {
 }
 
 impl SchemeObject {
-    /// If it is a symbol, look it up and return the result
     /// If it is a CodeList, execute it and return the result
+    /// If it is a symbol, look it up and return the result
     /// Otherwise return as-is
     pub fn exec(&self, env: &Rc<RefCell<Environment>>) -> Result<Rc<RuntimeObject>, ParseError> {
         match self {
+            // execute code list
+            SchemeObject::CodeList(lst) => exec_codelist(&lst, env),
             // look up the symbol name in the environment
             SchemeObject::Symbol(s) => env
                 .borrow_mut()
                 .lookup(&s)
                 .ok_or_else(|| ParseError::NameLookup(s.clone())),
-            SchemeObject::CodeList(lst) => exec_codelist(&lst, env),
+            // return as-is
             x => Ok(Rc::new(RuntimeObject::SchemeObject(Rc::new(x.clone())))),
         }
     }
@@ -49,6 +51,7 @@ fn exec_codelist(
     lst: &LinkedList<SchemeObject>,
     env: &Rc<RefCell<Environment>>,
 ) -> Result<Rc<RuntimeObject>, ParseError> {
+    // the head of the code list is the function to execute
     let scm_obj = match lst.front() {
         Some(c) => c,
         None => {
@@ -65,13 +68,14 @@ fn exec_codelist(
         LinkedList::new()
     };
 
+    // how do we call the head of the code list?
     match scm_obj {
         SchemeObject::Symbol(cmd) => {
             // is this a normal function call or a special form?
             match cmd.as_str() {
-                "define" => define(&tail, &env),
-                "let" => scm_let(&tail, &env),
-                "lambda" => lambda(&tail, env.clone()),
+                "define" => define(&tail, env),
+                "let" => scm_let(&tail, env),
+                "lambda" => lambda(&tail, env),
                 "if" => panic!("TODO"),
                 _ => function_call(scm_obj, &tail, env),
             }
@@ -96,10 +100,11 @@ fn apply_biding(
     if tail.len() == 2 {
         let mut tail_iter = tail.iter(); // todo: should this be a list of Rc<>
 
+        // first item in the binding list
         match tail_iter.next().unwrap() {
             // ordinary variable binding
             SchemeObject::Symbol(name) => {
-                // return the name and the value
+                // return the name and the evaluated value
                 let scm_obj = tail_iter.next().unwrap().clone();
                 Ok((name.clone(), scm_obj.exec(env)?))
             }
@@ -115,17 +120,17 @@ fn apply_biding(
                             "You can't name a function that",
                         )))
                     }
-                    None => panic!("Empty let assignment list"),
+                    None => panic!("Empty assignment list"),
                 };
 
                 // get the function body
                 let body = tail_iter.next().unwrap().clone();
 
                 // get the function argument names and construct the `RuntimeObject`
-                let rt_obj = read_scm_fn(&mut lst_iter, body, env.clone())?;
+                let rt_obj = read_scm_fn(&mut lst_iter, body, env)?;
                 Ok((name.clone(), Rc::new(rt_obj)))
             }
-            // error
+            // neither a function binding nor a symbol
             _ => Err(ParseError::SyntaxError(String::from(
                 "You can't name a variable that",
             ))),
@@ -141,7 +146,7 @@ fn apply_biding(
 fn read_scm_fn(
     name_iter: &mut Iterator<Item = &SchemeObject>,
     body: SchemeObject,
-    env: Rc<RefCell<Environment>>,
+    env: &Rc<RefCell<Environment>>,
 ) -> Result<RuntimeObject, ParseError> {
     // read in argument names
     let mut arg_names = Vec::new();
@@ -155,12 +160,14 @@ fn read_scm_fn(
         }
     }
 
-    Ok(RuntimeObject::SFunc(body, arg_names, env))
+    Ok(RuntimeObject::SFunc(body, arg_names, env.clone()))
 }
 
+/// Helper function for `exec_codelist`
+/// Handles executing lambda expressions
 fn lambda(
     tail: &LinkedList<SchemeObject>,
-    env: Rc<RefCell<Environment>>,
+    env: &Rc<RefCell<Environment>>,
 ) -> Result<Rc<RuntimeObject>, ParseError> {
     // two arguments: argument names and the function body
     // TODO additional arguments are more code statements for the fn body like in a let?
@@ -191,6 +198,7 @@ fn lambda(
 }
 
 /// helper function for `exec_codelist`
+/// Executes a define statement
 fn define(
     tail: &LinkedList<SchemeObject>,
     env: &Rc<RefCell<Environment>>,
@@ -202,6 +210,7 @@ fn define(
 }
 
 /// helper function for `exec_codelist`
+/// Executes a let statement
 fn scm_let(
     tail: &LinkedList<SchemeObject>,
     env: &Rc<RefCell<Environment>>,
@@ -226,6 +235,10 @@ fn scm_let(
                     )));
                 }
             }
+
+            // shrink local_env now we have finished putting it together
+            local_env.borrow_mut().shrink();
+
             // execute the code arguments
             let mut last_ret = Err(ParseError::SyntaxError(String::from("No let result")));
 
@@ -287,10 +300,10 @@ mod test {
 
         // create an environment where "name" is mapped to "value"
         let env = Environment::new(None);
-        let get_entry = || Rc::new(RuntimeObject::SchemeObject(val_obj.clone()));
-        env.borrow_mut().set(name, get_entry());
+        let entry = Rc::new(RuntimeObject::SchemeObject(val_obj.clone()));
+        env.borrow_mut().set(name, entry.clone());
 
-        assert_eq!(symbol.exec(&env), Ok(get_entry()))
+        assert_eq!(symbol.exec(&env), Ok(entry))
     }
 
     #[test]
@@ -303,16 +316,18 @@ mod test {
     }
 
     /// implementation of string concatenation for use in tests
-    fn cat(lst: &LinkedList<Rc<RuntimeObject>>, _env: &mut Environment) -> Rc<RuntimeObject> {
+    fn cat(
+        args: &LinkedList<Rc<RuntimeObject>>,
+        _env: &Rc<RefCell<Environment>>,
+    ) -> Rc<RuntimeObject> {
         let mut out = String::new();
 
-        for arg in lst {
+        for arg in args {
+            // concat strings or panic
             match arg.deref() {
-                RuntimeObject::SchemeObject(rc) => {
-                    match rc.deref() {
-                        SchemeObject::String(s) => out += s,
-                        _ => panic!("Expected string arguments"),
-                    }
+                RuntimeObject::SchemeObject(rc) => match rc.deref() {
+                    SchemeObject::String(s) => out += s,
+                    _ => panic!("Expected string arguments"),
                 },
                 _ => panic!("Expected string arguments"),
             }
@@ -333,10 +348,11 @@ mod test {
                 String::from(" "),
             )))),
         );
+        env.borrow_mut().shrink();
         env
     }
 
-    fn exec_codelist(program: &str, expected: Vec<RuntimeObject>) {
+    fn exec_program(program: &str, expected: Vec<RuntimeObject>) {
         let env = get_test_env();
 
         let mut chars = program.chars();
@@ -356,7 +372,7 @@ mod test {
             "Hello world!",
         ))));
 
-        exec_codelist(program, vec![expected])
+        exec_program(program, vec![expected])
     }
 
     #[test]
@@ -366,7 +382,7 @@ mod test {
             "Hello world!",
         ))));
 
-        exec_codelist(program, vec![expected])
+        exec_program(program, vec![expected])
     }
 
     #[test]
@@ -379,7 +395,7 @@ mod test {
         ))));
         let expected = vec![RuntimeObject::None, RuntimeObject::None, last];
 
-        exec_codelist(program, expected)
+        exec_program(program, expected)
     }
 
     #[test]
@@ -391,7 +407,7 @@ mod test {
             "Hello world!",
         ))));
 
-        exec_codelist(program, vec![expected])
+        exec_program(program, vec![expected])
     }
 
     #[test]
@@ -403,7 +419,7 @@ mod test {
             "local binding",
         ))));
 
-        exec_codelist(program, vec![RuntimeObject::None, expected])
+        exec_program(program, vec![RuntimeObject::None, expected])
     }
 
     #[test]
@@ -415,7 +431,7 @@ mod test {
             "global binding",
         ))));
 
-        exec_codelist(program, vec![expected])
+        exec_program(program, vec![expected])
     }
 
     #[test]
@@ -425,7 +441,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hello world"))));
 
-        exec_codelist(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![RuntimeObject::None, expected]);
     }
 
     #[test]
@@ -435,7 +451,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi Tom"))));
 
-        exec_codelist(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![RuntimeObject::None, expected]);
     }
 
     #[test]
@@ -446,7 +462,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi Tom"))));
 
-        exec_codelist(program, vec![expected]);
+        exec_program(program, vec![expected]);
     }
 
     #[test]
@@ -455,7 +471,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hello world"))));
 
-        exec_codelist(program, vec![expected])
+        exec_program(program, vec![expected])
     }
 
     #[test]
@@ -464,7 +480,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi Tom"))));
 
-        exec_codelist(program, vec![expected]);
+        exec_program(program, vec![expected]);
     }
 
     #[test]
@@ -475,7 +491,7 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi Tom"))));
 
-        exec_codelist(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![RuntimeObject::None, expected]);
     }
 
     #[test]
@@ -486,8 +502,10 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi"))));
 
-        exec_codelist(program, vec![RuntimeObject::None, RuntimeObject::None, expected]);
-
+        exec_program(
+            program,
+            vec![RuntimeObject::None, RuntimeObject::None, expected],
+        );
     }
 
     #[test]
@@ -499,7 +517,6 @@ mod test {
         let expected =
             RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(String::from("hi"))));
 
-        exec_codelist(program, vec![RuntimeObject::None, expected]);
-
+        exec_program(program, vec![RuntimeObject::None, expected]);
     }
 }

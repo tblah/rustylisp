@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Stores the environment from which variables are looked up
-#[derive(Debug, PartialEq, Clone)] // we are only cloning Rc<RuntimeObject> not the actual obj
+#[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
     /// Points to the next environment in the name resolution order
     parent: Option<Rc<RefCell<Environment>>>,
@@ -26,7 +26,7 @@ impl Environment {
     }
 
     /// Look up variable in environment
-    pub fn lookup<'a>(&'a self, name: &str) -> Option<Rc<RuntimeObject>> {
+    pub fn lookup(&self, name: &str) -> Option<Rc<RuntimeObject>> {
         match self.names.get(name) {
             Some(entry) => Some(entry.clone()), // just clones the Rc - no copy
             None => match &self.parent {
@@ -69,6 +69,11 @@ impl Environment {
     /// Set the parent
     pub fn set_parent(&mut self, parent: Option<Rc<RefCell<Self>>>) {
         self.parent = parent;
+    }
+
+    /// shrink
+    pub fn shrink(&mut self) {
+        self.names.shrink_to_fit()
     }
 }
 

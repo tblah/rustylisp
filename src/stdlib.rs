@@ -16,7 +16,7 @@ pub fn get_std_env() -> Rc<RefCell<Environment>> {
     env
 }
 
-fn disp(lst: &LinkedList<Rc<RuntimeObject>>, _env: &mut Environment) -> Rc<RuntimeObject> {
+fn disp(lst: &LinkedList<Rc<RuntimeObject>>, _env: &Rc<RefCell<Environment>>) -> Rc<RuntimeObject> {
     for arg in lst {
         print!("{:?} ", arg); // todo this shouldn't be debug printing
     }

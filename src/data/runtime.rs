@@ -11,17 +11,19 @@ use std::fmt;
 use std::rc::Rc;
 
 #[cfg_attr(feature = "cargo-clippy", allow(stutter))]
+/// A scheme object which can result from the execution of scheme code
 /// The trait implementations are a bit fragile so read the source first
 pub enum RuntimeObject {
     /// A `SchemeObject`
     SchemeObject(Rc<SchemeObject>),
     /// A rust function
-    RFunc(fn(&LinkedList<Rc<RuntimeObject>>, &mut Environment) -> Rc<RuntimeObject>),
+    RFunc(fn(&LinkedList<Rc<RuntimeObject>>, &Rc<RefCell<Environment>>) -> Rc<RuntimeObject>),
     /// A scheme function,
     SFunc(
         SchemeObject, // Code list
         Vec<String>,  // argument names
-        Rc<RefCell<Environment>>, // closure environment
+        // closure environment (the environment in use when the function was defined)
+        Rc<RefCell<Environment>>,
     ),
     /// None (for use as a function return value)
     None,
@@ -34,10 +36,9 @@ fn eval_args(
     env: &Rc<RefCell<Environment>>,
 ) -> Result<LinkedList<Rc<RuntimeObject>>, ParseError> {
     let mut ret = LinkedList::new();
-    let results = args.iter().map(|arg| arg.exec(&env));
 
-    for res in results {
-        ret.push_back(res?);
+    for arg in args {
+        ret.push_back(arg.exec(env)?);
     }
 
     Ok(ret)
@@ -47,16 +48,19 @@ impl RuntimeObject {
     /// evaluates a runtime object
     pub fn exec(
         &self,
-        args: &LinkedList<SchemeObject>, env: &Rc<RefCell<Environment>>,) -> Result<Rc<Self>, ParseError> {
+        args: &LinkedList<SchemeObject>,
+        env: &Rc<RefCell<Environment>>,
+    ) -> Result<Rc<Self>, ParseError> {
         match self {
             RuntimeObject::SchemeObject(o) => o.exec(env),
             RuntimeObject::RFunc(ref f) => {
-                let evaled_args = eval_args(args, &env.clone())?;
-                Ok(f(&evaled_args, &mut env.borrow_mut()))
+                let evaled_args = eval_args(args, env)?;
+                // call the function
+                Ok(f(&evaled_args, env))
             }
             RuntimeObject::SFunc(code_lst, arg_names, local_env) => {
                 exec_sfunc(code_lst, arg_names, args, local_env)
-            },
+            }
             RuntimeObject::None => Ok(Rc::new(RuntimeObject::None)),
         }
     }
@@ -81,15 +85,14 @@ fn exec_sfunc(
     }
 
     // evaluate arguments
-    let evaled_args = eval_args(func_args, &g_env.clone())?;
+    let evaled_args = eval_args(func_args, g_env)?;
 
     // add arguments to local environment
     let local_env = Environment::new(Some(g_env.clone()));
     for (name, arg) in arg_names.iter().zip(evaled_args) {
-        local_env
-            .borrow_mut()
-            .set(name.clone(), arg);
+        local_env.borrow_mut().set(name.clone(), arg);
     }
+    local_env.borrow_mut().shrink();
 
     code_list.exec(&local_env)
 }
