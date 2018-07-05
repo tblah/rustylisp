@@ -19,6 +19,15 @@ impl<'a> TokenIterator<'a> {
     }
 }
 
+impl<'a, T> From<&'a mut T> for TokenIterator<'a>
+where
+    T: Iterator<Item = char>,
+{
+    fn from(it: &'a mut T) -> Self {
+        Self::new(it)
+    }
+}
+
 /// predicate used in next
 /// defines characters which we split tokens upon (other than whitespace)
 fn is_special(c: char) -> bool {

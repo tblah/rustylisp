@@ -5,18 +5,22 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+#[cfg_attr(feature = "cargo-clippy", allow(stutter))]
+/// `Environment`s are used packed in `Rc<RefCell<Environment>>`
+pub type PackedEnv = Rc<RefCell<Environment>>;
+
 /// Stores the environment from which variables are looked up
 #[derive(Debug, PartialEq, Clone)]
 pub struct Environment {
     /// Points to the next environment in the name resolution order
-    parent: Option<Rc<RefCell<Environment>>>,
+    parent: Option<PackedEnv>,
     /// Mapping of variable names to objects
     names: HashMap<String, Rc<RuntimeObject>>,
 }
 
 impl Environment {
     /// Instance new Environment
-    pub fn new(parent: Option<Rc<RefCell<Self>>>) -> Rc<RefCell<Self>> {
+    pub fn new(parent: Option<Rc<RefCell<Self>>>) -> PackedEnv {
         let env = Self {
             parent,
             names: HashMap::new(),
@@ -80,18 +84,13 @@ impl Environment {
 #[cfg(test)]
 mod tests {
     use data::env::*;
-    use data::SchemeObject;
     use std::rc::Rc;
 
     #[test]
     fn one_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || {
-            Rc::new(RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(
-                String::from("obj"),
-            ))))
-        };
+        let get_obj = || Rc::new(RuntimeObject::from("obj"));
         let exp_res = Some(get_obj());
 
         let env = Environment::new(None);
@@ -111,11 +110,7 @@ mod tests {
     fn two_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || {
-            Rc::new(RuntimeObject::SchemeObject(Rc::new(SchemeObject::String(
-                String::from("obj"),
-            ))))
-        };
+        let get_obj = || Rc::new(RuntimeObject::from("obj"));
         let exp_res = Some(get_obj());
 
         let g_env = Environment::new(None);

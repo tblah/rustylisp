@@ -1,6 +1,6 @@
 //! Constructs an Abstract Syntax Tree from the token stream
 
-use super::data::*;
+use super::data::scm_static::*;
 use super::tokenise::TokenIterator;
 use std::collections::LinkedList;
 use std::iter::FromIterator;
@@ -15,6 +15,16 @@ impl<'a> ObjectIterator<'a> {
     /// Create a new instance of ObjectIterator
     pub fn new(source: TokenIterator<'a>) -> Self {
         Self { source }
+    }
+}
+
+/// Create this from anything from which we can create a `TokenIterator`
+impl<'a, T> From<T> for ObjectIterator<'a>
+where
+    T: Into<TokenIterator<'a>>,
+{
+    fn from(x: T) -> Self {
+        Self::new(x.into())
     }
 }
 
@@ -76,7 +86,7 @@ fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
     match parse_token(token_iter)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
         SchemeObject::CodeList(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
-        obj => Err(ParseError::SyntaxError(format!(
+        obj => Err(ParseError::from(format!(
             "Syntax error: # followed by {:?}",
             obj
         ))),
@@ -96,9 +106,9 @@ fn parse_token_quoted(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pa
 /// Separate from `parse_token_hash` because `match` is awkward with `String`
 fn string_to_bool(s: &str) -> Result<SchemeObject, ParseError> {
     match s {
-        "t" => Ok(SchemeObject::Bool(true)),
-        "f" => Ok(SchemeObject::Bool(false)),
-        obj => Err(ParseError::SyntaxError(format!(
+        "t" => Ok(SchemeObject::from(true)),
+        "f" => Ok(SchemeObject::from(false)),
+        obj => Err(ParseError::from(format!(
             "Syntax error: # followed by {:?}",
             obj
         ))),
@@ -111,7 +121,7 @@ fn parse_token_other(token: &str) -> Result<SchemeObject, ParseError> {
     if token.starts_with('"') {
         if token.len() > 1 {
             let end = token.len() - 1; // remove closing '"'
-            Ok(SchemeObject::String(String::from(&token[1..end])))
+            Ok(SchemeObject::from(&token[1..end]))
         } else {
             // too short to have an ending '"'
             Err(ParseError::PartialStream)
@@ -121,14 +131,14 @@ fn parse_token_other(token: &str) -> Result<SchemeObject, ParseError> {
         Err(ParseError::PartialStream)
     } else {
         // valid symbol
-        Ok(SchemeObject::Symbol(String::from(token)))
+        Ok(SchemeObject::sym_from(token))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use ast::ParseError;
-    use data::*;
+    use data::scm_static::*;
     use std::collections::LinkedList;
     use std::iter::FromIterator;
     use tokenise::tokenise;
@@ -146,42 +156,38 @@ mod tests {
 
     #[test]
     fn bool() {
-        let expected = vec![SchemeObject::Bool(true), SchemeObject::Bool(false)];
+        let expected = vec![SchemeObject::from(true), SchemeObject::from(false)];
         run_test("#t #f", Ok(expected))
     }
 
     #[test]
     fn bad_hash() {
-        let expected =
-            ParseError::SyntaxError(String::from("Syntax error: # followed by \"error\""));
+        let expected = ParseError::from("Syntax error: # followed by \"error\"");
         run_test("#error", Err(expected))
     }
 
     #[test]
     fn symbol() {
-        run_test(
-            "a_symbol",
-            Ok(vec![SchemeObject::Symbol(String::from("a_symbol"))]),
-        )
+        run_test("a_symbol", Ok(vec![SchemeObject::sym_from("a_symbol")]))
     }
 
     #[test]
     fn string() {
-        let expected = vec![SchemeObject::String(String::from("I am a string"))];
+        let expected = vec![SchemeObject::from("I am a string")];
         run_test("\"I am a string\"", Ok(expected))
     }
 
     #[test]
     fn empty_string() {
-        let expected = vec![SchemeObject::String(String::from(""))];
+        let expected = vec![SchemeObject::from("")];
         run_test("\"\"", Ok(expected))
     }
 
     #[test]
     fn simple_form() {
         let mut lst = LinkedList::new();
-        lst.push_back(SchemeObject::Symbol(String::from("one")));
-        lst.push_back(SchemeObject::Symbol(String::from("two")));
+        lst.push_back(SchemeObject::sym_from("one"));
+        lst.push_back(SchemeObject::sym_from("two"));
 
         let expected = vec![SchemeObject::CodeList(lst)];
         run_test("(one two)", Ok(expected))
@@ -190,13 +196,13 @@ mod tests {
     #[test]
     fn nested_form() {
         let mut inner_lst = LinkedList::new();
-        inner_lst.push_back(SchemeObject::Symbol(String::from("one")));
-        inner_lst.push_back(SchemeObject::Symbol(String::from("two")));
+        inner_lst.push_back(SchemeObject::sym_from("one"));
+        inner_lst.push_back(SchemeObject::sym_from("two"));
         let inner_obj = SchemeObject::CodeList(inner_lst);
 
         let mut outer_lst = LinkedList::new();
         outer_lst.push_back(inner_obj);
-        outer_lst.push_back(SchemeObject::String(String::from("three")));
+        outer_lst.push_back(SchemeObject::from("three"));
         let outer_obj = SchemeObject::CodeList(outer_lst);
 
         let expected = vec![outer_obj];
@@ -205,23 +211,20 @@ mod tests {
 
     #[test]
     fn vector() {
-        let expected = vec![SchemeObject::Vector(vec![SchemeObject::Bool(true)])];
+        let expected = vec![SchemeObject::Vector(vec![SchemeObject::from(true)])];
         run_test("#(#t)", Ok(expected))
     }
 
     #[test]
     fn quotes() {
         let scm = "'#t 'symbol '\"string\" '(one two) '#(one two)";
-        let v = vec![
-            SchemeObject::Symbol(String::from("one")),
-            SchemeObject::Symbol(String::from("two")),
-        ];
+        let v = vec![SchemeObject::sym_from("one"), SchemeObject::sym_from("two")];
         let l = LinkedList::from_iter(v.clone());
 
         let mut expected = Vec::with_capacity(5);
-        expected.push(SchemeObject::Bool(true));
-        expected.push(SchemeObject::Symbol(String::from("symbol")));
-        expected.push(SchemeObject::String(String::from("string")));
+        expected.push(SchemeObject::from(true));
+        expected.push(SchemeObject::sym_from("symbol"));
+        expected.push(SchemeObject::from("string"));
         expected.push(SchemeObject::QuotedList(l));
         expected.push(SchemeObject::Vector(v));
 

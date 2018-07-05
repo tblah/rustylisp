@@ -27,3 +27,17 @@ pub enum ParseError {
     /// Name lookup error
     NameLookup(String),
 }
+
+/// Creates a `ParseError::SyntaxError`
+impl<'a> From<&'a str> for ParseError {
+    fn from(s: &'a str) -> Self {
+        ParseError::SyntaxError(String::from(s))
+    }
+}
+
+/// Creates a `ParseError::SyntaxError`
+impl From<String> for ParseError {
+    fn from(s: String) -> Self {
+        ParseError::SyntaxError(s)
+    }
+}
