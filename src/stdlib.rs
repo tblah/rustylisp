@@ -1,13 +1,12 @@
 //! Scheme standard library
 
-use data::env::Environment;
+use data::env::*;
 use data::runtime::RuntimeObject;
-use std::cell::RefCell;
 use std::collections::LinkedList;
 use std::rc::Rc;
 
 /// Returns an environment containing the standard library
-pub fn get_std_env() -> Rc<RefCell<Environment>> {
+pub fn get_std_env() -> PackedEnv {
     let env = Environment::new(None);
 
     env.borrow_mut()
@@ -16,7 +15,7 @@ pub fn get_std_env() -> Rc<RefCell<Environment>> {
     env
 }
 
-fn disp(lst: &LinkedList<Rc<RuntimeObject>>, _env: &Rc<RefCell<Environment>>) -> Rc<RuntimeObject> {
+fn disp(lst: &LinkedList<Rc<RuntimeObject>>, _env: &PackedEnv) -> Rc<RuntimeObject> {
     for arg in lst {
         print!("{:?} ", arg); // todo this shouldn't be debug printing
     }

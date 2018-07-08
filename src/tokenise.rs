@@ -1,40 +1,53 @@
 //! Module for turning a character stream input of scheme source code into an iterator of (string) tokens
 
 use std::collections::VecDeque;
+use std::iter::IntoIterator;
 use std::iter::Iterator;
 
 /// Iterator for tokens
-pub struct TokenIterator<'a> {
-    source: &'a mut Iterator<Item = char>,
+pub struct TokenIterator<T>
+where
+    T: Iterator<Item = char>,
+{
     pending: VecDeque<String>,
+    source: T,
 }
 
-impl<'a> TokenIterator<'a> {
+impl<T> TokenIterator<T>
+where
+    T: Iterator<Item = char>,
+{
     /// Create a new instance of TokenIterator
-    pub fn new(source: &'a mut Iterator<Item = char>) -> Self {
+    pub fn new<I>(source: I) -> Self
+    where
+        I: IntoIterator<Item = T::Item, IntoIter = T>,
+    {
         Self {
-            source,
             pending: VecDeque::with_capacity(2),
+            source: source.into_iter(),
         }
     }
 }
 
-impl<'a, T> From<&'a mut T> for TokenIterator<'a>
+impl<T> From<T> for TokenIterator<T>
 where
     T: Iterator<Item = char>,
 {
-    fn from(it: &'a mut T) -> Self {
+    fn from(it: T) -> Self {
         Self::new(it)
     }
 }
 
-/// predicate used in next
+/// predicate used in `next`
 /// defines characters which we split tokens upon (other than whitespace)
 fn is_special(c: char) -> bool {
     c == '(' || c == ')' || c == '\'' || c == '#'
 }
 
-impl<'a> Iterator for TokenIterator<'a> {
+impl<T> Iterator for TokenIterator<T>
+where
+    T: Iterator<Item = char>,
+{
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -158,15 +171,19 @@ impl<'a> Iterator for TokenIterator<'a> {
 }
 
 /// Turn scheme source into a vector of tokens (Strings)
-pub fn tokenise(source: &mut Iterator<Item = char>) -> Vec<String> {
-    let iter = TokenIterator::new(source);
+pub fn tokenise<T, I>(to_tokens: I) -> Vec<String>
+where
+    T: Iterator<Item = char>,
+    I: Into<TokenIterator<T>>,
+{
+    let iter = to_tokens.into();
     iter.collect()
 }
 
 #[cfg(test)]
 mod tests {
     fn run_test(tv: &str, expected: &Vec<&str>) {
-        let res = super::tokenise(&mut tv.chars());
+        let res = super::tokenise(tv.chars());
         assert_eq!(res, *expected);
     }
 

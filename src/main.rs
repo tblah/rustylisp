@@ -13,7 +13,7 @@ fn main() {
     println!("{}", test_str);
 
     let tokens = tokenise::tokenise(&mut test_str.chars());
-    let ast = ast::parse_tokens(tokenise::TokenIterator::new(&mut test_str.chars())).unwrap();
+    let ast = ast::parse_tokens(&mut test_str.chars()).unwrap();
 
     println!("\nTokenised: {:?}", tokens);
     println!("\nAST: {:?}", &ast);

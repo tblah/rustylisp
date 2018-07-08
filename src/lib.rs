@@ -8,6 +8,7 @@
 #![warn(non_upper_case_globals)]
 #![warn(non_camel_case_types)]
 #![warn(unused_qualifications)]
+
 pub mod ast;
 pub mod data;
 pub mod stdlib;
@@ -20,7 +21,7 @@ pub enum ParseError {
     EmptyStream,
     /// Encountered the end of the token iterator before we thought we were done
     PartialStream,
-    /// Found a ')'
+    /// Found an unexpected ')'
     ClosingBracket,
     /// Syntax Error e.g. #a
     SyntaxError(String),

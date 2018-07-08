@@ -7,28 +7,38 @@ use std::iter::FromIterator;
 use ParseError;
 
 /// Iterator over `SchemeObject`s
-pub struct ObjectIterator<'a> {
-    source: TokenIterator<'a>,
+pub struct ObjectIterator<T>
+where
+    T: Iterator<Item = char>,
+{
+    source: TokenIterator<T>,
 }
 
-impl<'a> ObjectIterator<'a> {
+impl<T> ObjectIterator<T>
+where
+    T: Iterator<Item = char>,
+{
     /// Create a new instance of ObjectIterator
-    pub fn new(source: TokenIterator<'a>) -> Self {
+    pub fn new(source: TokenIterator<T>) -> Self {
         Self { source }
     }
 }
 
 /// Create this from anything from which we can create a `TokenIterator`
-impl<'a, T> From<T> for ObjectIterator<'a>
+impl<T, I> From<T> for ObjectIterator<I>
 where
-    T: Into<TokenIterator<'a>>,
+    T: Into<TokenIterator<I>>,
+    I: Iterator<Item = char>,
 {
     fn from(x: T) -> Self {
         Self::new(x.into())
     }
 }
 
-impl<'a> Iterator for ObjectIterator<'a> {
+impl<T> Iterator for ObjectIterator<T>
+where
+    T: Iterator<Item = char>,
+{
     type Item = Result<SchemeObject, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -39,14 +49,21 @@ impl<'a> Iterator for ObjectIterator<'a> {
     }
 }
 
-/// fully consume a token iterator to produce a list of scheme objects
-pub fn parse_tokens(token_iter: TokenIterator) -> Result<Vec<SchemeObject>, ParseError> {
-    ObjectIterator::new(token_iter).collect()
+/// fully consume a token iterator to produce a Vector of scheme objects
+pub fn parse_tokens<T, I>(to_object_iter: I) -> Result<Vec<SchemeObject>, ParseError>
+where
+    T: Iterator<Item = char>,
+    I: Into<ObjectIterator<T>>,
+{
+    to_object_iter.into().collect()
 }
 
 /// Consume a stream of tokens and output the first token generated
 /// This function just dispatches to the right helper function
-fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+fn parse_token<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject, ParseError>
+where
+    T: Iterator<Item = char>,
+{
     let mode = match token_iter.next() {
         None => return Err(ParseError::EmptyStream),
         Some(s) => s,
@@ -64,7 +81,10 @@ fn parse_token(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseErro
 }
 
 /// Recursively parses a form (...)
-fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+fn parse_token_form<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject, ParseError>
+where
+    T: Iterator<Item = char>,
+{
     let mut lst = LinkedList::new();
 
     loop {
@@ -82,7 +102,10 @@ fn parse_token_form(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
 }
 
 /// Parse a hash token
-fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+fn parse_token_hash<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject, ParseError>
+where
+    T: Iterator<Item = char>,
+{
     match parse_token(token_iter)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
         SchemeObject::CodeList(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
@@ -94,7 +117,10 @@ fn parse_token_hash(token_iter: &mut TokenIterator) -> Result<SchemeObject, Pars
 }
 
 /// Parse a quoted token
-fn parse_token_quoted(token_iter: &mut TokenIterator) -> Result<SchemeObject, ParseError> {
+fn parse_token_quoted<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject, ParseError>
+where
+    T: Iterator<Item = char>,
+{
     match parse_token(token_iter)? {
         SchemeObject::CodeList(lst) => Ok(SchemeObject::QuotedList(lst)),
         obj => Ok(obj),

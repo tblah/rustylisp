@@ -245,7 +245,6 @@ mod test {
     use data::env::*;
     use data::runtime::RuntimeObject;
     use data::scm_static::*;
-    use tokenise;
 
     use std::collections::LinkedList;
     use std::ops::Deref;
