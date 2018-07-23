@@ -3,6 +3,7 @@
 use super::env::*;
 use super::runtime::RuntimeObject;
 use super::scm_static::SchemeObject;
+use stdlib::get_none;
 use ParseError;
 
 use std::collections::LinkedList;
@@ -171,7 +172,7 @@ fn define(
     let (name, val) = apply_biding(tail, env)?;
     env.borrow_mut().set_global(name, val);
 
-    Ok(Rc::new(RuntimeObject::None))
+    Ok(get_none())
 }
 
 /// helper function for `exec_codelist`

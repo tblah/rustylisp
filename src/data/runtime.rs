@@ -3,6 +3,7 @@
 
 use data::env::*;
 use data::scm_static::SchemeObject;
+use stdlib::get_none;
 use ParseError;
 
 use std::collections::LinkedList;
@@ -77,7 +78,7 @@ impl RuntimeObject {
             RuntimeObject::SFunc(code_lst, arg_names, local_env) => {
                 exec_sfunc(code_lst, arg_names, args, local_env)
             }
-            RuntimeObject::None => Ok(Rc::new(RuntimeObject::None)),
+            RuntimeObject::None => Ok(get_none()),
         }
     }
 }

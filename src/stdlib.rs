@@ -29,20 +29,57 @@ pub fn get_std_env() -> PackedEnv {
     env
 }
 
-// Ideally we would define these functions within lib_func! so that the function doesn't need to be duplicated. Unfortunately you can't just pass a function body into a macro because the argument names won't be defined
-
+// short-hand
 type Lst = LinkedList<Rc<RuntimeObject>>;
 type Ret = Rc<RuntimeObject>;
 
-fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
-    for arg in lst {
-        print!("{:?} ", arg); // todo this shouldn't be debug printing
-    }
+/// Macro to share implementation of `get_none`, `get_true` and `get_false`
+/// The idea is to have only one copy of the Null, true and false objects per thread
+/// The generated function returns an Rc to these objects
+/// Unique true, false and None objects can result from direct construction e.g.
+/// `Rc::new(RuntimeObject::from(true))`
+macro_rules! const_obj {
+    ($(#[$attr:meta])*, $name:ident, $init: expr) => {
+        $(#[$attr])*
+        /// see definition of `const_obj!`
+        pub fn $name() -> Ret {
+            thread_local! {
+                static OBJ: Rc<RuntimeObject> = Rc::new($init);
+            }
 
-    Rc::new(RuntimeObject::None)
+            OBJ.with(|o| o.clone())
+        }
+    }
 }
 
-// just for testing lib_funcs. TODO: remove this
+const_obj!{
+    /// share references to `RuntimeObject::None`
+    , get_none, RuntimeObject::None
+}
+
+const_obj!{
+    /// share references to #t
+    , get_true, RuntimeObject::from(true)
+}
+
+const_obj!{
+    /// share references to #f
+    , get_false, RuntimeObject::from(false)
+}
+
+// Actually define standard library functions:
+
+// Ideally we would define these functions within lib_func! so that the function doesn't need to be duplicated. Unfortunately you can't just pass a function body into a macro because the argument names won't be defined
+
+fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
+    for arg in lst {
+        print!("{:?} ", arg); // TODO this shouldn't be debug printing
+    }
+
+    get_none()
+}
+
+// just for testing lib_funcs!. TODO: remove this
 fn id(lst: &Lst, _env: &PackedEnv) -> Ret {
     lst.front().unwrap().clone()
 }
