@@ -1,6 +1,7 @@
 //! Defines `SchemeObject`
 
 use std::collections::LinkedList;
+use std::fmt;
 
 /// Representation of a scheme object as parsed from source code
 #[derive(Debug, PartialEq, Clone)]
@@ -68,5 +69,38 @@ impl<'a> SymFrom<&'a String> for SchemeObject {
 impl SymFrom<String> for SchemeObject {
     fn sym_from(s: String) -> Self {
         SchemeObject::Symbol(s)
+    }
+}
+
+/// Utility fn for impl of `fmt::Display` for `SchemeObject`
+fn print_code_lst<'a, I>(f: &mut fmt::Formatter, lst: I, s: [char; 2]) -> fmt::Result
+where
+    I: Iterator<Item = &'a SchemeObject>,
+{
+    write!(f, "{}", s[0])?;
+    for so in lst {
+        write!(f, "{} ", so)?;
+    }
+    write!(f, "{}", s[1])
+}
+
+impl fmt::Display for SchemeObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::SchemeObject::*;
+        match *self {
+            Bool(b) => if b {
+                write!(f, "#t")
+            } else {
+                write!(f, "#f")
+            },
+            Symbol(ref s) => write!(f, "{}", s),
+            String(ref s) => write!(f, "\"{}\"", s),
+            CodeList(ref lst) => print_code_lst(f, lst.iter(), ['(', ')']),
+            QuotedList(ref lst) => {
+                write!(f, "'")?;
+                print_code_lst(f, lst.iter(), ['(', ')'])
+            }
+            Vector(ref lst) => print_code_lst(f, lst.iter(), ['[', ']']),
+        }
     }
 }

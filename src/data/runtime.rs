@@ -29,6 +29,15 @@ pub enum RuntimeObject {
     None,
 }
 
+impl fmt::Display for RuntimeObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RuntimeObject::SchemeObject(ref so) => so.fmt(f),
+            ref other => write!(f, "{:?}", other),
+        }
+    }
+}
+
 /// Implement all `From<T>` which are implemented for `SchemeObject`
 impl<T> From<T> for RuntimeObject
 where

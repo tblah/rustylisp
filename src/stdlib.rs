@@ -73,7 +73,7 @@ const_obj!{
 
 fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
     for arg in lst {
-        print!("{:?} ", arg); // TODO this shouldn't be debug printing
+        print!("{} ", arg);
     }
 
     get_none()
