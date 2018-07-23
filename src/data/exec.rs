@@ -3,7 +3,7 @@
 use super::env::*;
 use super::runtime::RuntimeObject;
 use super::scm_static::SchemeObject;
-use stdlib::get_none;
+use stdlib::{get_none, get_true};
 use ParseError;
 
 use std::collections::LinkedList;
@@ -54,7 +54,7 @@ fn exec_codelist(
                 "define" => define(&tail, env),
                 "let" => scm_let(&tail, env),
                 "lambda" => lambda(&tail, env),
-                "if" => panic!("TODO"),
+                "if" => scm_if(&tail, env),
                 _ => function_call(scm_obj, &tail, env),
             }
         }
@@ -238,6 +238,31 @@ fn function_call(
 
     // execute the function
     runtime_obj.exec(&tail, env)
+}
+
+fn scm_if(
+    tail: &LinkedList<SchemeObject>,
+    env: &PackedEnv,
+) -> Result<Rc<RuntimeObject>, ParseError> {
+    if tail.len() < 2 {
+        return Err(ParseError::from(
+            "If statement needs to at least specify a condition and something to do on true",
+        ));
+    }
+
+    let mut iter = tail.iter();
+
+    // evaluate condition
+    let cond = iter.next().unwrap().exec(env)?;
+
+    let true_branch = iter.next().unwrap();
+
+    if cond == get_true() {
+        true_branch.exec(env)
+    } else {
+        iter.next()
+            .map_or_else(|| Ok(get_none()), |so| so.exec(env))
+    }
 }
 
 #[cfg(test)]
@@ -449,5 +474,41 @@ mod test {
         let expected = RuntimeObject::from("hi");
 
         exec_program(program, vec![RuntimeObject::None, expected]);
+    }
+
+    #[test]
+    fn if_true1() {
+        let program = "(if #t \"hi\")";
+        let expected = RuntimeObject::from("hi");
+        exec_program(program, vec![expected]);
+    }
+
+    #[test]
+    fn if_true2() {
+        let program = "(if #t \"hi\" \"lo\")";
+        let expected = RuntimeObject::from("hi");
+        exec_program(program, vec![expected]);
+    }
+
+    #[test]
+    fn if_false1() {
+        let program = "(if #f \"hi\")";
+        let expected = RuntimeObject::None;
+        exec_program(program, vec![expected]);
+    }
+
+    #[test]
+    fn if_false2() {
+        let program = "(if #f \"hi\" \"lo\")";
+        let expected = RuntimeObject::from("lo");
+        exec_program(program, vec![expected]);
+    }
+
+    #[test]
+    fn if_sym() {
+        let program = "(let ((sym #t))
+                         (if sym \"hi\"))";
+        let expected = RuntimeObject::from("hi");
+        exec_program(program, vec![expected])
     }
 }
