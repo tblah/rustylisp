@@ -8,7 +8,7 @@ use rustyscheme::tokenise;
 fn main() {
     let test_str = String::from(
         "; I am a comment
-(display (id \"; I am not a comment\"))",
+(display \"; I am not a comment\")",
     );
     println!("{}", test_str);
 

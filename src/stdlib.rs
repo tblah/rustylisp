@@ -3,6 +3,7 @@
 use data::env::*;
 use data::runtime::RuntimeObject;
 use std::collections::LinkedList;
+use std::process;
 use std::rc::Rc;
 
 /// short-hand for adding functions to an environment
@@ -24,7 +25,7 @@ pub fn get_std_env() -> PackedEnv {
     let env = Environment::new(None);
 
     //trace_macros!(true);
-    lib_funcs!(env, display, id);
+    lib_funcs!(env, display, exit);
 
     env
 }
@@ -79,7 +80,6 @@ fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
     get_none()
 }
 
-// just for testing lib_funcs!. TODO: remove this
-fn id(lst: &Lst, _env: &PackedEnv) -> Ret {
-    lst.front().unwrap().clone()
+fn exit(_lst: &Lst, _env: &PackedEnv) -> Ret {
+    process::exit(0);
 }

@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Tom Eccles <t@freedommail.info>"]
 
 [dependencies]
+linefeed = "0.5"
