@@ -73,14 +73,23 @@ impl SymFrom<String> for SchemeObject {
 }
 
 /// Utility fn for impl of `fmt::Display` for `SchemeObject`
-fn print_code_lst<'a, I>(f: &mut fmt::Formatter, lst: I, s: [char; 2]) -> fmt::Result
+fn print_code_lst<'a, I>(f: &mut fmt::Formatter, mut lst: I, s: [char; 2]) -> fmt::Result
 where
     I: Iterator<Item = &'a SchemeObject>,
 {
+    // opening symbol
     write!(f, "{}", s[0])?;
-    for so in lst {
-        write!(f, "{} ", so)?;
+
+    // no space on first iter
+    if let Some(so) = lst.next() {
+        write!(f, "{}", so)?;
     }
+    // spaces on subsequent iters
+    for so in lst {
+        write!(f, " {}", so)?;
+    }
+
+    // closing symbol
     write!(f, "{}", s[1])
 }
 

@@ -1,24 +1,40 @@
 #![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
 extern crate rustyscheme;
 
+extern crate readline;
+
+use readline::{add_history, readline};
+
 use rustyscheme::ast;
+use rustyscheme::data::runtime::RuntimeObject;
 use rustyscheme::stdlib::get_std_env;
-use rustyscheme::tokenise;
+
+use std::io;
+use std::io::Write;
 
 fn main() {
-    let test_str = String::from(
-        "; I am a comment
-(display \"; I am not a comment\")",
-    );
-    println!("{}", test_str);
-
-    let tokens = tokenise::tokenise(&mut test_str.chars());
-    let ast = ast::parse_tokens(&mut test_str.chars()).unwrap();
-
-    println!("\nTokenised: {:?}", tokens);
-    println!("\nAST: {:?}", &ast);
-    println!("\nExecuting...");
+    let prompt = "demo> ";
     let env = get_std_env();
-    let res: Vec<_> = ast.iter().map(|scm_obj| scm_obj.exec(&env)).collect();
-    println!("\nGot {:?}", res);
+
+    while let Ok(s) = readline(prompt) {
+        add_history(&s).unwrap();
+
+        let code = ast::ObjectIterator::from(s.chars());
+
+        let tmp = ast::parse_tokens(s.chars());
+        println!("code: {:?}", tmp);
+
+        for scm_obj in code {
+            let tmp = scm_obj.unwrap();
+
+            let res = tmp.exec(&env).unwrap();
+
+            match *res {
+                RuntimeObject::None => (),
+                _ => println!("{}", res),
+            }
+
+            io::stdout().flush().unwrap();
+        }
+    }
 }

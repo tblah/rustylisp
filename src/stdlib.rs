@@ -25,7 +25,7 @@ pub fn get_std_env() -> PackedEnv {
     let env = Environment::new(None);
 
     //trace_macros!(true);
-    lib_funcs!(env, display, exit);
+    lib_funcs!(env, display, exit, newline);
 
     env
 }
@@ -73,8 +73,13 @@ const_obj!{
 // Ideally we would define these functions within lib_func! so that the function doesn't need to be duplicated. Unfortunately you can't just pass a function body into a macro because the argument names won't be defined
 
 fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
-    for arg in lst {
-        print!("{} ", arg);
+    let mut iter = lst.iter();
+
+    if let Some(obj) = iter.next() {
+        print!("{}", obj); // no space
+    }
+    for arg in iter {
+        print!(" {}", arg); // space
     }
 
     get_none()
@@ -82,4 +87,8 @@ fn display(lst: &Lst, _env: &PackedEnv) -> Ret {
 
 fn exit(_lst: &Lst, _env: &PackedEnv) -> Ret {
     process::exit(0);
+}
+
+fn newline(_lst: &Lst, _env: &PackedEnv) -> Ret {
+    Rc::new(RuntimeObject::from("\n"))
 }

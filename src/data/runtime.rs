@@ -33,6 +33,10 @@ impl fmt::Display for RuntimeObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RuntimeObject::SchemeObject(ref so) => so.fmt(f),
+            RuntimeObject::None => Ok(()), // print nothing
+            RuntimeObject::SFunc(ref so, ref names, _) => {
+                write!(f, "Function with arguments {:?}: {}", names, so)
+            },
             ref other => write!(f, "{:?}", other),
         }
     }
