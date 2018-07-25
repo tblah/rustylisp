@@ -72,27 +72,6 @@ impl SymFrom<String> for SchemeObject {
     }
 }
 
-/// Utility fn for impl of `fmt::Display` for `SchemeObject`
-fn print_code_lst<'a, I>(f: &mut fmt::Formatter, mut lst: I, s: [char; 2]) -> fmt::Result
-where
-    I: Iterator<Item = &'a SchemeObject>,
-{
-    // opening symbol
-    write!(f, "{}", s[0])?;
-
-    // no space on first iter
-    if let Some(so) = lst.next() {
-        write!(f, "{:?}", so)?;
-    }
-    // spaces on subsequent iters
-    for so in lst {
-        write!(f, " {:?}", so)?;
-    }
-
-    // closing symbol
-    write!(f, "{}", s[1])
-}
-
 impl fmt::Display for SchemeObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::SchemeObject::*;
@@ -103,12 +82,16 @@ impl fmt::Display for SchemeObject {
                 write!(f, "#f")
             },
             Symbol(ref s) | String(ref s) => write!(f, "{}", s),
-            CodeList(ref lst) => print_code_lst(f, lst.iter(), ['(', ')']),
+            CodeList(ref lst) => {
+                super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['(', ')'])
+            }
             QuotedList(ref lst) => {
                 write!(f, "'")?;
-                print_code_lst(f, lst.iter(), ['(', ')'])
+                super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['(', ')'])
             }
-            Vector(ref lst) => print_code_lst(f, lst.iter(), ['[', ']']),
+            Vector(ref lst) => {
+                super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['[', ']'])
+            }
         }
     }
 }

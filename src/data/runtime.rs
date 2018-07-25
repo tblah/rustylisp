@@ -35,7 +35,10 @@ impl fmt::Display for RuntimeObject {
             RuntimeObject::SchemeObject(ref so) => so.fmt(f),
             RuntimeObject::None => Ok(()), // print nothing
             RuntimeObject::SFunc(ref so, ref names, _) => {
-                write!(f, "Function with arguments {:?}: {}", names, so)
+                //"(lambda ({}) {})"
+                write!(f, "(lambda ")?;
+                super::print_code_lst(f, names.iter().cloned(), ['(', ')'])?;
+                write!(f, " {:?})", so)
             }
             ref other => write!(f, "{:?}", other),
         }
