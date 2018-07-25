@@ -18,8 +18,10 @@ pub mod tokenise;
 /// Possible parse errors
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
-    /// The token stream was empty
+    /// The token stream was empty (not fatal)
     EmptyStream,
+    /// Expected token but the stream was empty (fatal)
+    MissingToken,
     /// Encountered the end of the token iterator before we thought we were done
     PartialStream,
     /// Found an unexpected ')'

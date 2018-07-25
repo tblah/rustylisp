@@ -35,6 +35,13 @@ where
     }
 }
 
+/// controls what kind of error we throw when the end of the source iterator is encountered
+enum ParseMode {
+    TokenOptional,
+    TokenRequired,
+}
+use self::ParseMode::{TokenOptional, TokenRequired};
+
 impl<T> Iterator for ObjectIterator<T>
 where
     T: Iterator<Item = char>,
@@ -42,7 +49,7 @@ where
     type Item = Result<SchemeObject, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match parse_token(&mut self.source) {
+        match parse_token(&mut self.source, &TokenOptional) {
             Err(ParseError::EmptyStream) => None,
             res => Some(res),
         }
@@ -60,12 +67,22 @@ where
 
 /// Consume a stream of tokens and output the first token generated
 /// This function just dispatches to the right helper function
-fn parse_token<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject, ParseError>
+fn parse_token<T>(
+    token_iter: &mut TokenIterator<T>,
+    mode: &ParseMode,
+) -> Result<SchemeObject, ParseError>
 where
     T: Iterator<Item = char>,
 {
     let mode = match token_iter.next() {
-        None => return Err(ParseError::EmptyStream),
+        None => {
+            return {
+                match mode {
+                    TokenOptional => Err(ParseError::EmptyStream),
+                    TokenRequired => Err(ParseError::MissingToken),
+                }
+            }
+        }
         Some(s) => s,
     };
 
@@ -89,7 +106,7 @@ where
 
     loop {
         // parse each item in this list
-        let obj = match parse_token(token_iter) {
+        let obj = match parse_token(token_iter, &TokenRequired) {
             Ok(o) => o,
             Err(ParseError::ClosingBracket) => break,
             Err(e) => return Err(e),
@@ -106,7 +123,7 @@ fn parse_token_hash<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObject
 where
     T: Iterator<Item = char>,
 {
-    match parse_token(token_iter)? {
+    match parse_token(token_iter, &TokenRequired)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
         SchemeObject::CodeList(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
         obj => Err(ParseError::from(format!(
@@ -121,7 +138,7 @@ fn parse_token_quoted<T>(token_iter: &mut TokenIterator<T>) -> Result<SchemeObje
 where
     T: Iterator<Item = char>,
 {
-    match parse_token(token_iter)? {
+    match parse_token(token_iter, &TokenRequired)? {
         SchemeObject::CodeList(lst) => Ok(SchemeObject::QuotedList(lst)),
         obj => Ok(obj),
     }

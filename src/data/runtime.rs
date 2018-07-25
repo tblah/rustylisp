@@ -36,7 +36,7 @@ impl fmt::Display for RuntimeObject {
             RuntimeObject::None => Ok(()), // print nothing
             RuntimeObject::SFunc(ref so, ref names, _) => {
                 write!(f, "Function with arguments {:?}: {}", names, so)
-            },
+            }
             ref other => write!(f, "{:?}", other),
         }
     }

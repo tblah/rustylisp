@@ -4,7 +4,7 @@ use std::collections::LinkedList;
 use std::fmt;
 
 /// Representation of a scheme object as parsed from source code
-#[derive(Debug, PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum SchemeObject {
     /// A boolean value
     Bool(bool),
@@ -82,11 +82,11 @@ where
 
     // no space on first iter
     if let Some(so) = lst.next() {
-        write!(f, "{}", so)?;
+        write!(f, "{:?}", so)?;
     }
     // spaces on subsequent iters
     for so in lst {
-        write!(f, " {}", so)?;
+        write!(f, " {:?}", so)?;
     }
 
     // closing symbol
@@ -102,14 +102,23 @@ impl fmt::Display for SchemeObject {
             } else {
                 write!(f, "#f")
             },
-            Symbol(ref s) => write!(f, "{}", s),
-            String(ref s) => write!(f, "\"{}\"", s),
+            Symbol(ref s) | String(ref s) => write!(f, "{}", s),
             CodeList(ref lst) => print_code_lst(f, lst.iter(), ['(', ')']),
             QuotedList(ref lst) => {
                 write!(f, "'")?;
                 print_code_lst(f, lst.iter(), ['(', ')'])
             }
             Vector(ref lst) => print_code_lst(f, lst.iter(), ['[', ']']),
+        }
+    }
+}
+
+impl fmt::Debug for SchemeObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::SchemeObject::*;
+        match *self {
+            String(ref s) => write!(f, "\"{}\"", s),
+            _ => fmt::Display::fmt(&self, f),
         }
     }
 }
