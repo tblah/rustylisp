@@ -10,13 +10,13 @@ use std::collections::LinkedList;
 use std::rc::Rc;
 
 impl SchemeObject {
-    /// If it is a CodeList, execute it and return the result
+    /// If it is a List, execute it and return the result
     /// If it is a symbol, look it up and return the result
     /// Otherwise return as-is
     pub fn exec(&self, env: &PackedEnv) -> Result<Rc<RuntimeObject>, ParseError> {
         match self {
             // execute code list
-            SchemeObject::CodeList(lst) => exec_codelist(&lst, env),
+            SchemeObject::List(lst) => exec_codelist(&lst, env),
             // look up the symbol name in the environment
             SchemeObject::Symbol(s) => env
                 .borrow_mut()
@@ -59,7 +59,7 @@ fn exec_codelist(
             }
         }
         // We need to evaluate the code list and then exec whatever it returns
-        SchemeObject::CodeList(_) => scm_obj.exec(env)?.exec(&tail, env),
+        SchemeObject::List(_) => scm_obj.exec(env)?.exec(&tail, env),
         // We can't call that type
         _ => Err(ParseError::from(format!(
             "{:?} found; function name expected",
@@ -87,7 +87,7 @@ fn apply_biding(
                 Ok((name.clone(), scm_obj.exec(env)?))
             }
             // function binding
-            SchemeObject::CodeList(lst) => {
+            SchemeObject::List(lst) => {
                 let mut lst_iter = lst.iter();
 
                 // first list item is the function name
@@ -147,7 +147,7 @@ fn lambda(
 
     // first argument is the argument names
     let mut arg_names = {
-        if let SchemeObject::CodeList(lst) = tail_iter.next().unwrap() {
+        if let SchemeObject::List(lst) = tail_iter.next().unwrap() {
             lst.iter()
         } else {
             return Err(ParseError::from(
@@ -186,12 +186,12 @@ fn scm_let(
     // check the number of arguments
     if tail.len() >= 2 {
         // this should be the list of lists of variables and mappings
-        if let SchemeObject::CodeList(lst) = tail_iter.next().unwrap() {
+        if let SchemeObject::List(lst) = tail_iter.next().unwrap() {
             let mut local_env = Environment::new(Some(env.clone()));
 
             // set all bindings in local_env
             for binding in lst {
-                if let SchemeObject::CodeList(lst) = binding {
+                if let SchemeObject::List(lst) = binding {
                     let (name, val) = apply_biding(lst, env)?;
                     env.borrow_mut().set(name, val);
                 } else {

@@ -115,7 +115,7 @@ where
         lst.push_back(obj);
     }
 
-    Ok(SchemeObject::CodeList(lst))
+    Ok(SchemeObject::List(lst))
 }
 
 /// Parse a hash token
@@ -125,7 +125,7 @@ where
 {
     match parse_token(token_iter, &TokenRequired)? {
         SchemeObject::Symbol(s) => string_to_bool(s.as_str()), // #t, #f
-        SchemeObject::CodeList(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
+        SchemeObject::List(l) => Ok(SchemeObject::Vector(Vec::from_iter(l))), // #(...)
         obj => Err(ParseError::from(format!(
             "Syntax error: # followed by {:?}",
             obj
@@ -139,8 +139,9 @@ where
     T: Iterator<Item = char>,
 {
     match parse_token(token_iter, &TokenRequired)? {
-        SchemeObject::CodeList(lst) => Ok(SchemeObject::QuotedList(lst)),
-        obj => Ok(obj),
+        SchemeObject::Bool(b) => Ok(SchemeObject::Bool(b)),
+        SchemeObject::String(s) => Ok(SchemeObject::String(s)),
+        inner => Ok(SchemeObject::Quoted(Box::new(inner))),
     }
 }
 
@@ -232,7 +233,7 @@ mod tests {
         lst.push_back(SchemeObject::sym_from("one"));
         lst.push_back(SchemeObject::sym_from("two"));
 
-        let expected = vec![SchemeObject::CodeList(lst)];
+        let expected = vec![SchemeObject::List(lst)];
         run_test("(one two)", Ok(expected))
     }
 
@@ -241,12 +242,12 @@ mod tests {
         let mut inner_lst = LinkedList::new();
         inner_lst.push_back(SchemeObject::sym_from("one"));
         inner_lst.push_back(SchemeObject::sym_from("two"));
-        let inner_obj = SchemeObject::CodeList(inner_lst);
+        let inner_obj = SchemeObject::List(inner_lst);
 
         let mut outer_lst = LinkedList::new();
         outer_lst.push_back(inner_obj);
         outer_lst.push_back(SchemeObject::from("three"));
-        let outer_obj = SchemeObject::CodeList(outer_lst);
+        let outer_obj = SchemeObject::List(outer_lst);
 
         let expected = vec![outer_obj];
         run_test("((one two) \"three\")", Ok(expected))
@@ -266,10 +267,10 @@ mod tests {
 
         let mut expected = Vec::with_capacity(5);
         expected.push(SchemeObject::from(true));
-        expected.push(SchemeObject::sym_from("symbol"));
+        expected.push(SchemeObject::Quoted(Box::new(SchemeObject::sym_from("symbol"))));
         expected.push(SchemeObject::from("string"));
-        expected.push(SchemeObject::QuotedList(l));
-        expected.push(SchemeObject::Vector(v));
+        expected.push(SchemeObject::Quoted(Box::new(SchemeObject::List(l))));
+        expected.push(SchemeObject::Quoted(Box::new(SchemeObject::Vector(v))));
 
         run_test(scm, Ok(expected));
     }

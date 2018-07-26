@@ -13,9 +13,9 @@ pub enum SchemeObject {
     /// A string e.g. "HELLO"
     String(String),
     /// A linked list which is not quoted: (...)
-    CodeList(LinkedList<SchemeObject>),
-    /// A linked list which is quoted: '(...)
-    QuotedList(LinkedList<SchemeObject>),
+    List(LinkedList<SchemeObject>),
+    /// A quoted object
+    Quoted(Box<SchemeObject>),
     /// A vector #()
     Vector(Vec<SchemeObject>),
 }
@@ -82,12 +82,11 @@ impl fmt::Display for SchemeObject {
                 write!(f, "#f")
             },
             Symbol(ref s) | String(ref s) => write!(f, "{}", s),
-            CodeList(ref lst) => {
+            List(ref lst) => {
                 super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['(', ')'])
             }
-            QuotedList(ref lst) => {
-                write!(f, "'")?;
-                super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['(', ')'])
+            Quoted(ref scm_obj) => {
+                write!(f, "'{}", scm_obj)
             }
             Vector(ref lst) => {
                 super::print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['[', ']'])
