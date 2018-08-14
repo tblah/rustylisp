@@ -1,6 +1,6 @@
 //! Constructs an Abstract Syntax Tree from the token stream
 
-use super::data::scm_static::*;
+use super::data::*;
 use super::tokenise::TokenIterator;
 use std::collections::LinkedList;
 use std::iter::FromIterator;
@@ -182,7 +182,7 @@ fn parse_token_other(token: &str) -> Result<SchemeObject, ParseError> {
 #[cfg(test)]
 mod tests {
     use ast::ParseError;
-    use data::scm_static::*;
+    use data::*;
     use std::collections::LinkedList;
     use std::iter::FromIterator;
     use tokenise::tokenise;
@@ -267,7 +267,9 @@ mod tests {
 
         let mut expected = Vec::with_capacity(5);
         expected.push(SchemeObject::from(true));
-        expected.push(SchemeObject::Quoted(Box::new(SchemeObject::sym_from("symbol"))));
+        expected.push(SchemeObject::Quoted(Box::new(SchemeObject::sym_from(
+            "symbol",
+        ))));
         expected.push(SchemeObject::from("string"));
         expected.push(SchemeObject::Quoted(Box::new(SchemeObject::List(l))));
         expected.push(SchemeObject::Quoted(Box::new(SchemeObject::Vector(v))));

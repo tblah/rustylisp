@@ -1,10 +1,9 @@
 //! Implements `SchemeObject::exec`
 
 use super::env::*;
-use super::runtime::RuntimeObject;
-use super::scm_static::SchemeObject;
+use super::scm_obj::SchemeObject;
+use super::RuntimeError;
 use stdlib::{get_none, get_true};
-use ParseError;
 
 use std::collections::LinkedList;
 use std::rc::Rc;
@@ -13,7 +12,7 @@ impl SchemeObject {
     /// If it is a List, execute it and return the result
     /// If it is a symbol, look it up and return the result
     /// Otherwise return as-is
-    pub fn exec(&self, env: &PackedEnv) -> Result<Rc<RuntimeObject>, ParseError> {
+    pub fn exec(&self, env: &PackedEnv) -> Result<Rc<Self>, RuntimeError> {
         match self {
             // execute code list
             SchemeObject::List(lst) => exec_codelist(&lst, env),
@@ -21,9 +20,11 @@ impl SchemeObject {
             SchemeObject::Symbol(s) => env
                 .borrow_mut()
                 .lookup(&s)
-                .ok_or_else(|| ParseError::NameLookup(s.clone())),
+                .ok_or_else(|| RuntimeError::NameLookup(s.clone())),
+            // return another reference to None
+            SchemeObject::None => Ok(get_none()),
             // return as-is
-            x => Ok(Rc::new(RuntimeObject::from(x.clone()))),
+            x => Ok(Rc::new(x.clone())),
         }
     }
 }
@@ -32,11 +33,11 @@ impl SchemeObject {
 fn exec_codelist(
     lst: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
+) -> Result<Rc<SchemeObject>, RuntimeError> {
     // the head of the code list is the function to execute
     let scm_obj = match lst.front() {
         Some(c) => c,
-        None => return Err(ParseError::from("Executing empty codelist")),
+        None => return Err(RuntimeError::from("Executing empty codelist")),
     };
 
     // get list tail - TODO immutable single linked list to avoid clone
@@ -59,13 +60,64 @@ fn exec_codelist(
             }
         }
         // We need to evaluate the code list and then exec whatever it returns
-        SchemeObject::List(_) => scm_obj.exec(env)?.exec(&tail, env),
+        SchemeObject::List(_) => scm_obj.exec(env)?.exec_args(&tail, env),
         // We can't call that type
-        _ => Err(ParseError::from(format!(
+        _ => Err(RuntimeError::from(format!(
             "{:?} found; function name expected",
             scm_obj
         ))),
     }
+}
+
+/// Reads in a scheme function's arguments and constructs the `SchemeObject`
+fn read_scm_fn(
+    name_iter: &mut Iterator<Item = &SchemeObject>,
+    body: SchemeObject,
+    env: &PackedEnv,
+) -> Result<SchemeObject, RuntimeError> {
+    // read in argument names
+    let mut arg_names = Vec::new();
+    for scm_obj in name_iter {
+        if let SchemeObject::Symbol(arg_name) = scm_obj {
+            arg_names.push(arg_name.clone());
+        } else {
+            return Err(RuntimeError::from("You can't call a variable that"));
+        }
+    }
+
+    Ok(SchemeObject::SFunc(Box::new(body), arg_names, env.clone()))
+}
+
+/// Helper function for `exec_codelist`
+/// Handles executing lambda expressions
+fn lambda(
+    tail: &LinkedList<SchemeObject>,
+    env: &PackedEnv,
+) -> Result<Rc<SchemeObject>, RuntimeError> {
+    // two arguments: argument names and the function body
+    // TODO additional arguments are more code statements for the fn body like in a let?
+    if tail.len() != 2 {
+        return Err(RuntimeError::from("Expected 2 arguments to lambda"));
+    }
+
+    let mut tail_iter = tail.iter();
+
+    // first argument is the argument names
+    let mut arg_names = {
+        if let SchemeObject::List(lst) = tail_iter.next().unwrap() {
+            lst.iter()
+        } else {
+            return Err(RuntimeError::from(
+                "Expected the first argument to lambda to be a list",
+            ));
+        }
+    };
+
+    // second argument is the function body
+    let body = tail_iter.next().unwrap().clone();
+
+    // construct the SchemeObject
+    Ok(Rc::new(read_scm_fn(&mut arg_names, body, env)?))
 }
 
 /// prepares to apply bindings (symbol val) for define and let
@@ -73,7 +125,7 @@ fn exec_codelist(
 fn apply_biding(
     tail: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<(String, Rc<RuntimeObject>), ParseError> {
+) -> Result<(String, Rc<SchemeObject>), RuntimeError> {
     // check the number of arguments
     if tail.len() == 2 {
         let mut tail_iter = tail.iter(); // todo: should this be a list of Rc<>
@@ -93,74 +145,23 @@ fn apply_biding(
                 // first list item is the function name
                 let name = match lst_iter.next() {
                     Some(SchemeObject::Symbol(name)) => name,
-                    Some(_) => return Err(ParseError::from("You can't name a function that")),
+                    Some(_) => return Err(RuntimeError::from("You can't name a function that")),
                     None => panic!("Empty assignment list"),
                 };
 
                 // get the function body
                 let body = tail_iter.next().unwrap().clone();
 
-                // get the function argument names and construct the `RuntimeObject`
+                // get the function argument names and construct the `SchemeObject`
                 let rt_obj = read_scm_fn(&mut lst_iter, body, env)?;
                 Ok((name.clone(), Rc::new(rt_obj)))
             }
             // neither a function binding nor a symbol
-            _ => Err(ParseError::from("You can't name a variable that")),
+            _ => Err(RuntimeError::from("You can't name a variable that")),
         }
     } else {
-        Err(ParseError::from("Expected 2 arguments"))
+        Err(RuntimeError::from("Expected 2 arguments"))
     }
-}
-
-/// Reads in a scheme function's arguments and constructs the `RuntimeObject`
-fn read_scm_fn(
-    name_iter: &mut Iterator<Item = &SchemeObject>,
-    body: SchemeObject,
-    env: &PackedEnv,
-) -> Result<RuntimeObject, ParseError> {
-    // read in argument names
-    let mut arg_names = Vec::new();
-    for scm_obj in name_iter {
-        if let SchemeObject::Symbol(arg_name) = scm_obj {
-            arg_names.push(arg_name.clone());
-        } else {
-            return Err(ParseError::from("You can't call a variable that"));
-        }
-    }
-
-    Ok(RuntimeObject::SFunc(body, arg_names, env.clone()))
-}
-
-/// Helper function for `exec_codelist`
-/// Handles executing lambda expressions
-fn lambda(
-    tail: &LinkedList<SchemeObject>,
-    env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
-    // two arguments: argument names and the function body
-    // TODO additional arguments are more code statements for the fn body like in a let?
-    if tail.len() != 2 {
-        return Err(ParseError::from("Expected 2 arguments to lambda"));
-    }
-
-    let mut tail_iter = tail.iter();
-
-    // first argument is the argument names
-    let mut arg_names = {
-        if let SchemeObject::List(lst) = tail_iter.next().unwrap() {
-            lst.iter()
-        } else {
-            return Err(ParseError::from(
-                "Expected the first argument to lambda to be a list",
-            ));
-        }
-    };
-
-    // second argument is the function body
-    let body = tail_iter.next().unwrap().clone();
-
-    // construct the RuntimeObject
-    Ok(Rc::new(read_scm_fn(&mut arg_names, body, env)?))
 }
 
 /// helper function for `exec_codelist`
@@ -168,7 +169,7 @@ fn lambda(
 fn define(
     tail: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
+) -> Result<Rc<SchemeObject>, RuntimeError> {
     let (name, val) = apply_biding(tail, env)?;
     env.borrow_mut().set_global(name, val);
 
@@ -180,7 +181,7 @@ fn define(
 fn scm_let(
     tail: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
+) -> Result<Rc<SchemeObject>, RuntimeError> {
     let mut tail_iter = tail.iter();
 
     // check the number of arguments
@@ -196,7 +197,7 @@ fn scm_let(
                     env.borrow_mut().set(name, val);
                 } else {
                     // binding wasn't a list
-                    return Err(ParseError::from("Let bindings should be 2 element lists"));
+                    return Err(RuntimeError::from("Let bindings should be 2 element lists"));
                 }
             }
 
@@ -204,7 +205,7 @@ fn scm_let(
             local_env.borrow_mut().shrink();
 
             // execute the code arguments
-            let mut last_ret = Err(ParseError::from("No let result"));
+            let mut last_ret = Err(RuntimeError::from("No let result"));
 
             for code in tail_iter {
                 last_ret = code.exec(&local_env);
@@ -219,11 +220,11 @@ fn scm_let(
             last_ret
         } else {
             // the first argument didn't look right
-            Err(ParseError::from("You incorrect let form"))
+            Err(RuntimeError::from("You incorrect let form"))
         }
     } else {
         // incorrect number of arguments
-        Err(ParseError::from("let should have at least 2 arguments"))
+        Err(RuntimeError::from("let should have at least 2 arguments"))
     }
 }
 
@@ -232,20 +233,20 @@ fn function_call(
     scm_obj: &SchemeObject,
     tail: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
+) -> Result<Rc<SchemeObject>, RuntimeError> {
     // look up the function
     let runtime_obj = scm_obj.exec(env)?;
 
     // execute the function
-    runtime_obj.exec(&tail, env)
+    runtime_obj.exec_args(&tail, env)
 }
 
 fn scm_if(
     tail: &LinkedList<SchemeObject>,
     env: &PackedEnv,
-) -> Result<Rc<RuntimeObject>, ParseError> {
+) -> Result<Rc<SchemeObject>, RuntimeError> {
     if tail.len() < 2 {
-        return Err(ParseError::from(
+        return Err(RuntimeError::from(
             "If statement needs to at least specify a condition and something to do on true",
         ));
     }
@@ -269,8 +270,7 @@ fn scm_if(
 mod test {
     use ast;
     use data::env::*;
-    use data::runtime::RuntimeObject;
-    use data::scm_static::*;
+    use data::*;
 
     use std::collections::LinkedList;
     use std::ops::Deref;
@@ -286,50 +286,48 @@ mod test {
 
         // create an environment where "name" is mapped to "value"
         let env = Environment::new(None);
-        let entry = Rc::new(RuntimeObject::from(val_obj.clone()));
-        env.borrow_mut().set(name, entry.clone());
+        env.borrow_mut().set(name, val_obj.clone());
 
-        assert_eq!(symbol.exec(&env), Ok(entry))
+        assert_eq!(symbol.exec(&env), Ok(val_obj.clone()))
     }
 
     #[test]
     fn return_as_is() {
         let env = Environment::new(None);
         let obj = Rc::new(SchemeObject::from("string"));
-        let obj_ret = Ok(Rc::new(RuntimeObject::from(obj.clone())));
+        let obj_ret = Ok(obj.clone());
 
         assert_eq!(obj.exec(&env), obj_ret);
     }
 
     /// implementation of string concatenation for use in tests
-    fn cat(args: &LinkedList<Rc<RuntimeObject>>, _env: &PackedEnv) -> Rc<RuntimeObject> {
+    fn cat(args: &LinkedList<Rc<SchemeObject>>, _env: &PackedEnv) -> Rc<SchemeObject> {
         let mut out = String::new();
 
         for arg in args {
             // concat strings or panic
             match arg.deref() {
-                RuntimeObject::SchemeObject(rc) => match rc.deref() {
-                    SchemeObject::String(s) => out += s,
-                    _ => panic!("Expected string arguments"),
-                },
+                SchemeObject::String(s) => out += s,
                 _ => panic!("Expected string arguments"),
             }
         }
 
-        Rc::new(RuntimeObject::from(out))
+        Rc::new(SchemeObject::from(out))
     }
 
     fn get_test_env() -> PackedEnv {
         let env = Environment::new(None);
+        env.borrow_mut().set(
+            String::from("cat"),
+            Rc::new(SchemeObject::RFunc(String::from("cat"), cat)),
+        );
         env.borrow_mut()
-            .set(String::from("cat"), Rc::new(RuntimeObject::RFunc(cat)));
-        env.borrow_mut()
-            .set(String::from("space"), Rc::new(RuntimeObject::from(" ")));
+            .set(String::from("space"), Rc::new(SchemeObject::from(" ")));
         env.borrow_mut().shrink();
         env
     }
 
-    fn exec_program(program: &str, expected: Vec<RuntimeObject>) {
+    fn exec_program(program: &str, expected: Vec<SchemeObject>) {
         let env = get_test_env();
 
         let mut chars = program.chars();
@@ -344,7 +342,7 @@ mod test {
     #[test]
     fn simple_codelist() {
         let program = "(cat \"Hello\" space \"world!\")";
-        let expected = RuntimeObject::from("Hello world!");
+        let expected = SchemeObject::from("Hello world!");
 
         exec_program(program, vec![expected])
     }
@@ -352,7 +350,7 @@ mod test {
     #[test]
     fn nested_codelist() {
         let program = "(cat \"Hello\" (cat space \"world!\"))";
-        let expected = RuntimeObject::from("Hello world!");
+        let expected = SchemeObject::from("Hello world!");
 
         exec_program(program, vec![expected])
     }
@@ -362,8 +360,8 @@ mod test {
         let program = "(define hello \"Hello\")
              (define world \"world\")
              (cat hello space world \"!\")";
-        let last = RuntimeObject::from("Hello world!");
-        let expected = vec![RuntimeObject::None, RuntimeObject::None, last];
+        let last = SchemeObject::from("Hello world!");
+        let expected = vec![SchemeObject::None, SchemeObject::None, last];
 
         exec_program(program, expected)
     }
@@ -373,7 +371,7 @@ mod test {
         let program = "(let ((world \"world\")
                              (hello \"Hello\"))
                             (cat hello space world \"!\"))";
-        let expected = RuntimeObject::from("Hello world!");
+        let expected = SchemeObject::from("Hello world!");
 
         exec_program(program, vec![expected])
     }
@@ -383,9 +381,9 @@ mod test {
         let program = "(define test \"global binding\")
                        (let ((test \"local binding\"))
                             (cat test))";
-        let expected = RuntimeObject::from("local binding");
+        let expected = SchemeObject::from("local binding");
 
-        exec_program(program, vec![RuntimeObject::None, expected])
+        exec_program(program, vec![SchemeObject::None, expected])
     }
 
     #[test]
@@ -393,7 +391,7 @@ mod test {
         let program = "(let ((test \"local binding\"))
                             (define test \"global binding\")
                             (cat test))";
-        let expected = RuntimeObject::from("global binding");
+        let expected = SchemeObject::from("global binding");
 
         exec_program(program, vec![expected])
     }
@@ -402,18 +400,18 @@ mod test {
     fn define_fn_no_args() {
         let program = "(define (f) (cat \"hello world\"))
                        (f)";
-        let expected = RuntimeObject::from("hello world");
+        let expected = SchemeObject::from("hello world");
 
-        exec_program(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![SchemeObject::None, expected]);
     }
 
     #[test]
     fn define_fn_args() {
         let program = "(define (hi person) (cat \"hi \" person))
                        (hi \"Tom\")";
-        let expected = RuntimeObject::from("hi Tom");
+        let expected = SchemeObject::from("hi Tom");
 
-        exec_program(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![SchemeObject::None, expected]);
     }
 
     #[test]
@@ -421,7 +419,7 @@ mod test {
         let program = "(let ((me \"Tom\")
                              ((hi person) (cat \"hi \" person)))
                             (hi me))";
-        let expected = RuntimeObject::from("hi Tom");
+        let expected = SchemeObject::from("hi Tom");
 
         exec_program(program, vec![expected]);
     }
@@ -429,7 +427,7 @@ mod test {
     #[test]
     fn lambda_no_args() {
         let program = "((lambda () (cat \"hello world\")))";
-        let expected = RuntimeObject::from("hello world");
+        let expected = SchemeObject::from("hello world");
 
         exec_program(program, vec![expected])
     }
@@ -437,7 +435,7 @@ mod test {
     #[test]
     fn lambda_args() {
         let program = "((lambda (name) (cat \"hi \" name)) \"Tom\")";
-        let expected = RuntimeObject::from("hi Tom");
+        let expected = SchemeObject::from("hi Tom");
 
         exec_program(program, vec![expected]);
     }
@@ -447,9 +445,9 @@ mod test {
         let program = "(define say_hi (lambda (name)
                                               (cat \"hi \" name)))
                        (say_hi \"Tom\")";
-        let expected = RuntimeObject::from("hi Tom");
+        let expected = SchemeObject::from("hi Tom");
 
-        exec_program(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![SchemeObject::None, expected]);
     }
 
     #[test]
@@ -457,11 +455,11 @@ mod test {
         let program = "(define (call_with_hi fn) (lambda () (fn \"hi\")))
                      (define say_hi (call_with_hi cat))
                      (say_hi)";
-        let expected = RuntimeObject::from("hi");
+        let expected = SchemeObject::from("hi");
 
         exec_program(
             program,
-            vec![RuntimeObject::None, RuntimeObject::None, expected],
+            vec![SchemeObject::None, SchemeObject::None, expected],
         );
     }
 
@@ -471,36 +469,36 @@ mod test {
                          (let ((hi \"hi\"))
                            (lambda () hi)))
                        (ret_hi)";
-        let expected = RuntimeObject::from("hi");
+        let expected = SchemeObject::from("hi");
 
-        exec_program(program, vec![RuntimeObject::None, expected]);
+        exec_program(program, vec![SchemeObject::None, expected]);
     }
 
     #[test]
     fn if_true1() {
         let program = "(if #t \"hi\")";
-        let expected = RuntimeObject::from("hi");
+        let expected = SchemeObject::from("hi");
         exec_program(program, vec![expected]);
     }
 
     #[test]
     fn if_true2() {
         let program = "(if #t \"hi\" \"lo\")";
-        let expected = RuntimeObject::from("hi");
+        let expected = SchemeObject::from("hi");
         exec_program(program, vec![expected]);
     }
 
     #[test]
     fn if_false1() {
         let program = "(if #f \"hi\")";
-        let expected = RuntimeObject::None;
+        let expected = SchemeObject::None;
         exec_program(program, vec![expected]);
     }
 
     #[test]
     fn if_false2() {
         let program = "(if #f \"hi\" \"lo\")";
-        let expected = RuntimeObject::from("lo");
+        let expected = SchemeObject::from("lo");
         exec_program(program, vec![expected]);
     }
 
@@ -508,7 +506,7 @@ mod test {
     fn if_sym() {
         let program = "(let ((sym #t))
                          (if sym \"hi\"))";
-        let expected = RuntimeObject::from("hi");
+        let expected = SchemeObject::from("hi");
         exec_program(program, vec![expected])
     }
 }

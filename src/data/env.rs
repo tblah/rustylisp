@@ -1,6 +1,6 @@
 //! Name lookup
 
-use super::runtime::RuntimeObject;
+use super::scm_obj::SchemeObject;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -15,7 +15,7 @@ pub struct Environment {
     /// Points to the next environment in the name resolution order
     parent: Option<PackedEnv>,
     /// Mapping of variable names to objects
-    names: HashMap<String, Rc<RuntimeObject>>,
+    names: HashMap<String, Rc<SchemeObject>>,
 }
 
 impl Environment {
@@ -30,7 +30,7 @@ impl Environment {
     }
 
     /// Look up variable in environment
-    pub fn lookup(&self, name: &str) -> Option<Rc<RuntimeObject>> {
+    pub fn lookup(&self, name: &str) -> Option<Rc<SchemeObject>> {
         match self.names.get(name) {
             Some(entry) => Some(entry.clone()), // just clones the Rc - no copy
             None => match &self.parent {
@@ -41,19 +41,19 @@ impl Environment {
     }
 
     /// Set variable in this environment
-    pub fn set(&mut self, name: String, val: Rc<RuntimeObject>) {
+    pub fn set(&mut self, name: String, val: Rc<SchemeObject>) {
         self.names.insert(name, val);
     }
 
     /// Set variable in the global environment and change the local environment to avoid shadowing
-    pub fn set_global(&mut self, name: String, val: Rc<RuntimeObject>) {
+    pub fn set_global(&mut self, name: String, val: Rc<SchemeObject>) {
         // we don't want any local variables to shadow the new definition
         self.names.remove(&name.clone());
         self.set_global_priv(name, val);
     }
 
     /// Only do the traversal to the global environment. Don't touch the local environment
-    fn set_global_priv(&mut self, name: String, val: Rc<RuntimeObject>) {
+    fn set_global_priv(&mut self, name: String, val: Rc<SchemeObject>) {
         match self.parent {
             None => self.set(name, val), // if self has no parent then it is global
             Some(ref mut p) => {
@@ -90,7 +90,7 @@ mod tests {
     fn one_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || Rc::new(RuntimeObject::from("obj"));
+        let get_obj = || Rc::new(SchemeObject::from("obj"));
         let exp_res = Some(get_obj());
 
         let env = Environment::new(None);
@@ -110,7 +110,7 @@ mod tests {
     fn two_level() {
         let name = String::from("name");
         let g_name = String::from("global");
-        let get_obj = || Rc::new(RuntimeObject::from("obj"));
+        let get_obj = || Rc::new(SchemeObject::from("obj"));
         let exp_res = Some(get_obj());
 
         let g_env = Environment::new(None);

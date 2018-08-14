@@ -6,7 +6,7 @@ extern crate readline;
 use readline::{add_history, readline};
 
 use rustyscheme::ast;
-use rustyscheme::data::runtime::RuntimeObject;
+use rustyscheme::data::SchemeObject;
 use rustyscheme::stdlib::get_std_env;
 
 use std::io;
@@ -24,14 +24,18 @@ fn main() {
         for scm_obj in code {
             let res = match scm_obj.map(|obj| obj.exec(&env)) {
                 Ok(Ok(r)) => r,
-                Err(e) | Ok(Err(e)) => {
-                    println!("Error: {:?}", e);
+                Err(e) => {
+                    println!("Parse Error: {:?}", e);
+                    continue 'input;
+                }
+                Ok(Err(e)) => {
+                    println!("{}", e.to_string());
                     continue 'input;
                 }
             };
 
             match *res {
-                RuntimeObject::None => (),
+                SchemeObject::None => (),
                 _ => println!("{}", res),
             }
 

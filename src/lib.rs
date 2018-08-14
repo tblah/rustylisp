@@ -28,8 +28,6 @@ pub enum ParseError {
     ClosingBracket,
     /// Syntax Error e.g. #a
     SyntaxError(String),
-    /// Name lookup error
-    NameLookup(String),
 }
 
 /// Creates a `ParseError::SyntaxError`

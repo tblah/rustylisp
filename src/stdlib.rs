@@ -1,7 +1,7 @@
 //! Scheme standard library
 
 use data::env::*;
-use data::runtime::RuntimeObject;
+use data::SchemeObject;
 use std::collections::LinkedList;
 use std::process;
 use std::rc::Rc;
@@ -14,7 +14,7 @@ macro_rules! lib_funcs {
         $(
             $env.borrow_mut().set(
                 String::from(stringify!($name)),
-                Rc::new(RuntimeObject::RFunc($name)),
+                Rc::new(SchemeObject::RFunc(String::from(stringify!($name)), $name)),
             );
         )*
     }};
@@ -27,25 +27,28 @@ pub fn get_std_env() -> PackedEnv {
     //trace_macros!(true);
     lib_funcs!(env, display, exit, newline);
 
+    // we don't expect regular changes to the global environment from now on so shrink it
+    env.borrow_mut().shrink();
+
     env
 }
 
 // short-hand
-type Lst = LinkedList<Rc<RuntimeObject>>;
-type Ret = Rc<RuntimeObject>;
+type Lst = LinkedList<Rc<SchemeObject>>;
+type Ret = Rc<SchemeObject>;
 
 /// Macro to share implementation of `get_none`, `get_true` and `get_false`
 /// The idea is to have only one copy of the Null, true and false objects per thread
 /// The generated function returns an Rc to these objects
 /// Unique true, false and None objects can result from direct construction e.g.
-/// `Rc::new(RuntimeObject::from(true))`
+/// `Rc::new(SchemeObject::from(true))`
 macro_rules! const_obj {
     ($(#[$attr:meta])*, $name:ident, $init: expr) => {
         $(#[$attr])*
         /// see definition of `const_obj!`
         pub fn $name() -> Ret {
             thread_local! {
-                static OBJ: Rc<RuntimeObject> = Rc::new($init);
+                static OBJ: Rc<SchemeObject> = Rc::new($init);
             }
 
             OBJ.with(|o| o.clone())
@@ -54,18 +57,18 @@ macro_rules! const_obj {
 }
 
 const_obj!{
-    /// share references to `RuntimeObject::None`
-    , get_none, RuntimeObject::None
+    /// share references to `SchemeObject::None`
+    , get_none, SchemeObject::None
 }
 
 const_obj!{
     /// share references to #t
-    , get_true, RuntimeObject::from(true)
+    , get_true, SchemeObject::from(true)
 }
 
 const_obj!{
     /// share references to #f
-    , get_false, RuntimeObject::from(false)
+    , get_false, SchemeObject::from(false)
 }
 
 // Actually define standard library functions:
@@ -90,5 +93,5 @@ fn exit(_lst: &Lst, _env: &PackedEnv) -> Ret {
 }
 
 fn newline(_lst: &Lst, _env: &PackedEnv) -> Ret {
-    Rc::new(RuntimeObject::from("\n"))
+    Rc::new(SchemeObject::from("\n"))
 }
