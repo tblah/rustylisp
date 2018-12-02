@@ -138,11 +138,13 @@ impl fmt::Display for SchemeObject {
         use self::SchemeObject::*;
 
         match self {
-            Bool(b) => if *b {
-                write!(f, "#t")
-            } else {
-                write!(f, "#f")
-            },
+            Bool(b) => {
+                if *b {
+                    write!(f, "#t")
+                } else {
+                    write!(f, "#f")
+                }
+            }
             Symbol(ref s) | String(ref s) => write!(f, "{}", s),
             List(ref lst) => print_code_lst(f, lst.iter().map(|x| format!("{:?}", x)), ['(', ')']),
             Quoted(ref scm_obj) => write!(f, "'{}", scm_obj),

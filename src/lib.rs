@@ -1,8 +1,8 @@
 //! Root crate for the library
 
 #![feature(trace_macros)]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(linkedlist))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::pedantic))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::linkedlist))]
 #![crate_name = "rustyscheme"]
 #![crate_type = "lib"]
 #![warn(missing_docs)]

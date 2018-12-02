@@ -56,17 +56,17 @@ macro_rules! const_obj {
     }
 }
 
-const_obj!{
+const_obj! {
     /// share references to `SchemeObject::None`
     , get_none, SchemeObject::None
 }
 
-const_obj!{
+const_obj! {
     /// share references to #t
     , get_true, SchemeObject::from(true)
 }
 
-const_obj!{
+const_obj! {
     /// share references to #f
     , get_false, SchemeObject::from(false)
 }

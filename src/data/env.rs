@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[cfg_attr(feature = "cargo-clippy", allow(stutter))]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::stutter))]
 /// `Environment`s are used packed in `Rc<RefCell<Environment>>`
 pub type PackedEnv = Rc<RefCell<Environment>>;
 

@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy::pedantic))]
 extern crate rustyscheme;
 
 extern crate readline;
@@ -34,10 +34,11 @@ fn main() {
                 }
             };
 
-            match *res {
-                SchemeObject::None => (),
-                _ => println!("{}", res),
-            }
+            if let SchemeObject::None = *res {
+                println!("None")
+            } else {
+                println!("{}", res)
+            };
 
             io::stdout().flush().unwrap();
         }
